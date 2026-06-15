@@ -145,7 +145,7 @@ ${fileDiffs}
 
 Investigate the real repository with the repo_* tools to ground every explanation (read the changed files in full, follow imports and types, find call sites, peek at tests). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary
-- the notable code chunks, each with what it does / how it fits / what calls it
+- the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), and a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun)
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
 - zero or more traceable values showing how a value flows through the change, with concrete example values where helpful
 - optionally, a gentle "guess what this does first?" self-check

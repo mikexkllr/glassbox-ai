@@ -150,6 +150,12 @@ function traceLinesFor(value: WalkthroughSection['traceableValues'][number] | nu
   return set
 }
 
+const CHANGE_META: Record<string, { label: string; cls: string; bar: string; sign: string }> = {
+  added: { label: 'ADDED', cls: 'bg-glass-add/15 text-glass-add', bar: 'border-l-glass-add', sign: '+' },
+  modified: { label: 'CHANGED', cls: 'bg-glass-accent/15 text-glass-accent', bar: 'border-l-glass-accent', sign: '~' },
+  removed: { label: 'REMOVED', cls: 'bg-glass-del/15 text-glass-del', bar: 'border-l-glass-del', sign: '−' }
+}
+
 function ChunkCard({
   chunk,
   explanations,
@@ -161,21 +167,57 @@ function ChunkCard({
   traceLines: Set<number>
   activeLine: number | null
 }) {
-  const [storyOpen, setStoryOpen] = useState(false)
+  const depth = useStore((s) => s.depth)
+  const diff = useStore((s) => s.diff)
+  const rewardOnce = useGame((s) => s.rewardOnce)
+
+  const [storyOpen, setStoryOpen] = useState(depth === 'deep')
+  useEffect(() => {
+    if (depth === 'deep') setStoryOpen(true)
+  }, [depth])
+
+  const meta = CHANGE_META[chunk.changeKind] ?? CHANGE_META.modified
+  const file = diff?.files.find((f) => f.path === chunk.file || f.oldPath === chunk.file)
+
+  const toggleStory = (e: React.MouseEvent) => {
+    const next = !storyOpen
+    setStoryOpen(next)
+    if (next) rewardOnce(`story:${chunk.file}:${chunk.id}`, 4, { x: e.clientX, y: e.clientY, reason: 'dug in', sound: 'reveal' })
+  }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-ink-700 bg-ink-900">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{ duration: 0.3 }}
+      className="overflow-hidden rounded-lg border border-ink-700 bg-ink-900"
+    >
       <div className="flex items-center gap-2 border-b border-ink-700 bg-ink-850 px-3 py-2">
+        <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider ${meta.cls}`}>{meta.label}</span>
         <span className="text-[13px] font-medium text-gray-200">{chunk.title}</span>
-        <span className="truncate font-mono text-[11px] text-ink-600">
+        <span className="truncate font-mono text-[10.5px] text-ink-600">
           {chunk.file}:{chunk.startLine}-{chunk.endLine}
         </span>
+        {file && (
+          <span className="font-mono text-[10.5px]">
+            <span className="text-glass-add">+{file.additions}</span> <span className="text-glass-del">−{file.deletions}</span>
+          </span>
+        )}
         <button
-          onClick={() => setStoryOpen((o) => !o)}
+          onClick={toggleStory}
           className="no-drag ml-auto rounded bg-ink-800 px-2 py-0.5 text-[11px] text-glass-accent hover:bg-ink-700"
         >
-          {storyOpen ? 'hide story' : 'story ▸'}
+          {storyOpen ? 'hide story' : 'story ▸ +4🪙'}
         </button>
+      </div>
+
+      {/* always-visible "what changed here" — works in gist mode too */}
+      <div className={`border-l-2 ${meta.bar} bg-ink-850/30 px-3 py-2`}>
+        <p className="text-[13px] leading-relaxed text-gray-200">
+          <span className="mr-1 font-bold text-ink-600">{meta.sign}</span>
+          {chunk.gist}
+        </p>
       </div>
 
       <AnimatePresence initial={false}>
@@ -190,6 +232,12 @@ function ChunkCard({
               <StoryLine label="What it does" text={chunk.story.what} />
               <StoryLine label="How it fits" text={chunk.story.fits} />
               <StoryLine label="What calls it" text={chunk.story.calledBy} />
+              {chunk.story.gotcha && (
+                <div className="mt-1 rounded-md border border-glass-warm/30 bg-glass-warm/5 p-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-glass-warm">⚠ Gotcha: </span>
+                  <span className="text-gray-200">{chunk.story.gotcha}</span>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -205,9 +253,9 @@ function ChunkCard({
       />
 
       <div className="border-t border-ink-700 bg-ink-850 px-3 py-2">
-        <WhyThis context={`${chunk.title} (${chunk.file}:${chunk.startLine}-${chunk.endLine}). ${chunk.story.what}`} />
+        <WhyThis context={`${chunk.title} (${chunk.file}:${chunk.startLine}-${chunk.endLine}). ${chunk.gist}. ${chunk.story.what}`} />
       </div>
-    </div>
+    </motion.div>
   )
 }
 

@@ -129,11 +129,19 @@ export interface ChunkStory {
   fits: string
   /** What calls it / what it calls (call-site context). */
   calledBy: string
+  /** A subtle point, edge case, or watch-out worth knowing. Optional. */
+  gotcha?: string
 }
+
+export type ChunkChangeKind = 'added' | 'modified' | 'removed'
 
 export interface WalkChunk extends CodeAnchor {
   id: string
   title: string
+  /** What happened to this block. */
+  changeKind: ChunkChangeKind
+  /** One always-visible line: what changed here (shown even in gist mode). */
+  gist: string
   story: ChunkStory
 }
 
