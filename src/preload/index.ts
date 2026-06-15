@@ -28,6 +28,9 @@ const api: GlassboxApi = {
     ipcRenderer.invoke('agent:deeper', diff, anchor, current),
   chat: (diff: DiffSummary, history: ChatMessage[], question: string) =>
     ipcRenderer.invoke('agent:chat', diff, history, question),
+  scoreAnswer: (diff, question, reference, userAnswer) =>
+    ipcRenderer.invoke('agent:score', diff, question, reference, userAnswer),
+  generateReview: (diff, decision, notes) => ipcRenderer.invoke('agent:review', diff, decision, notes),
 
   loadSession: (key: string) => ipcRenderer.invoke('session:load', key),
   saveSession: (session: PersistedSession) => ipcRenderer.invoke('session:save', session),

@@ -4,6 +4,7 @@ import type { InlineExplanation, CodeAnchor } from '@shared/types'
 import { tokenize, type Line } from '../lib/highlight'
 import { getFileText, cn } from '../lib/files'
 import { useStore } from '../store'
+import { useGame } from '../game/store'
 
 interface Props {
   file: string
@@ -28,6 +29,8 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
   const depth = useStore((s) => s.depth)
   const ref = useStore((s) => s.feature)
   const repoPath = useStore((s) => s.repoPath)
+
+  const rewardOnce = useGame((s) => s.rewardOnce)
 
   const [lines, setLines] = useState<Line[] | null>(null)
   const [pop, setPop] = useState<PopState | null>(null)
@@ -82,6 +85,11 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
     cancelClose()
     const r = el.getBoundingClientRect()
     setPop((p) => (p?.pinned ? p : { expl, x: r.left, y: r.bottom + 6, pinned: false }))
+    rewardOnce(`poke:${expl.file}:${expl.line}:${expl.symbol}`, 2, {
+      x: r.left + r.width / 2,
+      y: r.top,
+      sound: 'tick'
+    })
   }
   const onClick = (expl: InlineExplanation, el: HTMLElement) => {
     cancelClose()

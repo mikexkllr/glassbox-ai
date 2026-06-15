@@ -3,6 +3,7 @@ import { useStore } from './store'
 import Onboarding from './components/Onboarding'
 import Walkthrough from './components/Walkthrough'
 import SettingsModal from './components/Settings'
+import FxLayer from './components/FxLayer'
 
 export default function App() {
   const screen = useStore((s) => s.screen)
@@ -20,6 +21,7 @@ export default function App() {
     <div className="h-full">
       {screen === 'onboarding' ? <Onboarding /> : <Walkthrough />}
       {settingsOpen && <SettingsModal />}
+      <FxLayer />
     </div>
   )
 }

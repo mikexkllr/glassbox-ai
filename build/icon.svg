@@ -1,0 +1,66 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141821"/>
+      <stop offset="1" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c9cff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#5ee0c0" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a7bcff"/>
+      <stop offset="1" stop-color="#7c9cff"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffe28a"/>
+      <stop offset="1" stop-color="#ffb86b"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="28" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- app tile -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect x="2" y="2" width="1020" height="1020" rx="230" fill="none" stroke="#2a3346" stroke-width="3"/>
+
+  <!-- isometric glass box -->
+  <g filter="url(#soft)" transform="translate(512 540)">
+    <!-- box body -->
+    <g opacity="0.96">
+      <!-- left face -->
+      <path d="M -250 -60 L 0 80 L 0 360 L -250 220 Z" fill="#7c9cff" fill-opacity="0.18" stroke="url(#glass)" stroke-width="8" stroke-linejoin="round"/>
+      <!-- right face -->
+      <path d="M 250 -60 L 0 80 L 0 360 L 250 220 Z" fill="#5ee0c0" fill-opacity="0.16" stroke="url(#glass)" stroke-width="8" stroke-linejoin="round"/>
+      <!-- top (open lid) -->
+      <path d="M 0 -200 L 250 -60 L 0 80 L -250 -60 Z" fill="#7c9cff" fill-opacity="0.30" stroke="url(#lid)" stroke-width="9" stroke-linejoin="round"/>
+    </g>
+    <!-- code glints inside -->
+    <g stroke="#5ee0c0" stroke-width="11" stroke-linecap="round" opacity="0.9">
+      <line x1="-150" y1="70" x2="-70" y2="115"/>
+      <line x1="-150" y1="120" x2="-40" y2="182"/>
+      <line x1="-150" y1="170" x2="-95" y2="201"/>
+    </g>
+    <g stroke="#7c9cff" stroke-width="11" stroke-linecap="round" opacity="0.9">
+      <line x1="150" y1="70" x2="70" y2="115"/>
+      <line x1="150" y1="120" x2="40" y2="182"/>
+    </g>
+  </g>
+
+  <!-- magnifying glass -->
+  <g transform="translate(560 470)" filter="url(#soft)">
+    <circle cx="0" cy="0" r="150" fill="#0a0c10" fill-opacity="0.35" stroke="#e8ecf6" stroke-width="34"/>
+    <circle cx="0" cy="0" r="150" fill="none" stroke="#7c9cff" stroke-width="10" opacity="0.6"/>
+    <line x1="108" y1="108" x2="225" y2="225" stroke="#e8ecf6" stroke-width="46" stroke-linecap="round"/>
+    <!-- lens shine -->
+    <path d="M -70 -70 A 100 100 0 0 1 60 -90" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.7"/>
+  </g>
+
+  <!-- coin (gamification spark) -->
+  <g transform="translate(326 706)" filter="url(#soft)">
+    <circle r="78" fill="url(#coin)" stroke="#d9923f" stroke-width="8"/>
+    <circle r="58" fill="none" stroke="#b9772f" stroke-width="6" opacity="0.7"/>
+    <text x="0" y="30" text-anchor="middle" font-family="ui-sans-serif, Arial, sans-serif" font-size="86" font-weight="800" fill="#7a4a14">★</text>
+  </g>
+</svg>

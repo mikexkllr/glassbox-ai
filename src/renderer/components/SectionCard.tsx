@@ -9,6 +9,9 @@ import SelfCheck from './SelfCheck'
 import WhyThis from './WhyThis'
 import AgentStatus from './AgentStatus'
 import TrailChip from './InvestigationTrail'
+import Quiz from './Quiz'
+import Insights from './Insights'
+import { useGame } from '../game/store'
 
 export default function SectionCard({ plan, index }: { plan: SectionPlan; index: number }) {
   const section = useStore((s) => s.sections[plan.id])
@@ -17,6 +20,9 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
   const walked = useStore((s) => s.walked.includes(plan.id))
   const ensureSection = useStore((s) => s.ensureSection)
   const markWalked = useStore((s) => s.markWalked)
+
+  const rewardOnce = useGame((s) => s.rewardOnce)
+  const unlock = useGame((s) => s.unlock)
 
   const [open, setOpen] = useState(index === 0)
 
@@ -29,7 +35,11 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
   }, [open, section, live?.busy])
 
   useEffect(() => {
-    if (open && section) markWalked(plan.id)
+    if (open && section) {
+      markWalked(plan.id)
+      rewardOnce(`section:open:${plan.id}`, 10, { reason: 'section unlocked', sound: 'whoosh' })
+      unlock('first_section')
+    }
   }, [open, section])
 
   const activeValue = section?.traceableValues.find((v) => v.id === activeValueId) ?? null
@@ -73,7 +83,9 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
                     {depth === 'gist' ? section.plainSummaryGist : section.plainSummaryDeep}
                   </p>
 
-                  {section.selfCheck && <SelfCheck check={section.selfCheck} />}
+                  {section.insights?.length > 0 && <Insights insights={section.insights} sectionId={plan.id} />}
+
+                  {section.selfCheck && <SelfCheck check={section.selfCheck} sectionId={plan.id} />}
 
                   <div className="space-y-3">
                     {section.chunks.map((chunk) => (
@@ -100,8 +112,22 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
                             setActiveValueId((cur) => (cur === v.id ? null : v.id))
                             setStepIndex(0)
                           }}
-                          onStep={setStepIndex}
+                          onStep={(i) => {
+                            setStepIndex(i)
+                            if (i === v.steps.length - 1) {
+                              rewardOnce(`trace:${plan.id}:${v.id}`, 15, { reason: 'traced it!', sound: 'coin', confetti: true })
+                            }
+                          }}
                         />
+                      ))}
+                    </div>
+                  )}
+
+                  {section.quiz?.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] uppercase tracking-wide text-ink-600">Test yourself</div>
+                      {section.quiz.map((q, qi) => (
+                        <Quiz key={q.id} q={q} sectionId={plan.id} index={qi} />
                       ))}
                     </div>
                   )}

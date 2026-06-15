@@ -1,10 +1,27 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import type { AgentEvent, ChatMessage, CodeAnchor, DiffSummary, PersistedSession, Settings, SectionPlan } from '@shared/types'
+import type {
+  AgentEvent,
+  ChatMessage,
+  CodeAnchor,
+  DiffSummary,
+  PersistedSession,
+  ReviewDecision,
+  Settings,
+  SectionPlan
+} from '@shared/types'
 import { listBranches, computeDiff, showFile } from './git/diff.js'
 import { getSettings, saveSettings } from './store/settings.js'
 import { loadSession, saveSession } from './store/cache.js'
 import { makeModel } from './agent/model.js'
-import { generateOverview, generateSection, askWhy, chat, explainDeeper } from './agent/agent.js'
+import {
+  generateOverview,
+  generateSection,
+  askWhy,
+  chat,
+  explainDeeper,
+  scoreAnswer,
+  generateReview
+} from './agent/agent.js'
 
 function emitter(): (e: AgentEvent) => void {
   return (e) => {
@@ -58,6 +75,14 @@ export function registerIpc(): void {
   )
   ipcMain.handle('agent:chat', async (_e, diff: DiffSummary, history: ChatMessage[], question: string) =>
     chat(diff, history, question, emitter())
+  )
+  ipcMain.handle(
+    'agent:score',
+    async (_e, diff: DiffSummary, question: string, reference: string, userAnswer: string) =>
+      scoreAnswer(diff, question, reference, userAnswer, emitter())
+  )
+  ipcMain.handle('agent:review', async (_e, diff: DiffSummary, decision: ReviewDecision, notes: string) =>
+    generateReview(diff, decision, notes, emitter())
   )
 
   ipcMain.handle('session:load', async (_e, key: string) => loadSession(key))

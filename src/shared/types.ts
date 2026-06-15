@@ -169,6 +169,32 @@ export interface SelfCheck {
   answer: string
 }
 
+export interface QuizQuestion {
+  id: string
+  question: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+}
+
+/** Result of the AI scoring a user's free-text answer. */
+export interface ScoreResult {
+  score: number // 0-100
+  verdict: string // one short line
+  good: string // what the user got right
+  missing: string // what they missed or got wrong
+}
+
+export type ReviewDecision = 'approve' | 'request_changes' | 'comment'
+
+export interface ReviewDraft {
+  decision: ReviewDecision
+  summary: string
+  positives: string[]
+  concerns: string[]
+  body: string
+}
+
 /** One section of the walkthrough — returned by submit_walkthrough_section. */
 export interface WalkthroughSection {
   id: string
@@ -180,6 +206,10 @@ export interface WalkthroughSection {
   inlineExplanations: InlineExplanation[]
   traceableValues: TraceableValue[]
   selfCheck?: SelfCheck
+  /** Brilliant-style "aha" insights / gotchas about this code. */
+  insights: string[]
+  /** Quiz questions to test understanding (and earn coins). */
+  quiz: QuizQuestion[]
   /** Files the agent actually read/grepped to build this section. */
   investigationTrail: TrailEntry[]
 }
@@ -265,6 +295,8 @@ export interface GlassboxApi {
   askWhy: (diff: DiffSummary, question: string, context: string) => Promise<{ answer: string; trail: TrailEntry[] }>
   chat: (diff: DiffSummary, history: ChatMessage[], question: string) => Promise<{ answer: string; trail: TrailEntry[] }>
   explainDeeper: (diff: DiffSummary, anchor: CodeAnchor, current: string) => Promise<{ answer: string; trail: TrailEntry[] }>
+  scoreAnswer: (diff: DiffSummary, question: string, reference: string, userAnswer: string) => Promise<ScoreResult>
+  generateReview: (diff: DiffSummary, decision: ReviewDecision, notes: string) => Promise<ReviewDraft>
 
   loadSession: (key: string) => Promise<PersistedSession | null>
   saveSession: (session: PersistedSession) => Promise<void>

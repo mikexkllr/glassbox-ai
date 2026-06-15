@@ -1,6 +1,12 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { registerIpc } from './ipc.js'
+
+function appIcon(): string | undefined {
+  const p = join(app.getAppPath(), 'build', 'icon.png')
+  return existsSync(p) ? p : undefined
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -10,6 +16,7 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     backgroundColor: '#0a0c10',
+    icon: appIcon(),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),

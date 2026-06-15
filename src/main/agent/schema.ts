@@ -54,6 +54,14 @@ const selfCheck = z.object({
   answer: z.string().describe('The answer to reveal after the reader guesses or skips.')
 })
 
+const quizQuestion = z.object({
+  id: z.string().describe('Short stable id, e.g. "q1".'),
+  question: z.string().describe('A question that tests real understanding of THIS code (not trivia).'),
+  options: z.array(z.string()).min(2).max(4).describe('2-4 answer options.'),
+  correctIndex: z.number().int().describe('0-based index of the correct option.'),
+  explanation: z.string().describe('Why the correct answer is right (and others wrong).')
+})
+
 export const sectionSchema = z.object({
   id: z.string().describe('The section id you were asked to build.'),
   title: z.string(),
@@ -69,10 +77,32 @@ export const sectionSchema = z.object({
   traceableValues: z
     .array(traceableValue)
     .describe('Zero or more values worth watching flow through the change. Empty array is fine.'),
-  selfCheck: selfCheck.optional()
+  selfCheck: selfCheck.optional(),
+  insights: z
+    .array(z.string())
+    .describe('2-4 "aha" insights or gotchas about this code — the non-obvious things worth knowing.'),
+  quiz: z.array(quizQuestion).describe('1-3 quiz questions that test real understanding of this section.')
 })
 
 export type SectionPayload = z.infer<typeof sectionSchema>
+
+export const scoreSchema = z.object({
+  score: z.number().int().describe('0-100: how well the user understood, judged generously but honestly.'),
+  verdict: z.string().describe('One short encouraging line summarizing their answer.'),
+  good: z.string().describe('Specifically what the user got right.'),
+  missing: z.string().describe('Specifically what they missed or got wrong (a helpful hint, not harsh).')
+})
+
+export type ScorePayload = z.infer<typeof scoreSchema>
+
+export const reviewSchema = z.object({
+  summary: z.string().describe('A 1-2 sentence plain-language summary of the change for the PR review.'),
+  positives: z.array(z.string()).describe('Concrete good things about the change.'),
+  concerns: z.array(z.string()).describe('Concrete concerns, risks, or suggested changes (empty if approving cleanly).'),
+  body: z.string().describe('The full review comment body in markdown, ready to post.')
+})
+
+export type ReviewPayload = z.infer<typeof reviewSchema>
 
 const sectionPlan = z.object({
   id: z.string().describe('Short stable id, e.g. "sec-auth".'),
