@@ -58,7 +58,9 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   hot_streak: { id: 'hot_streak', label: 'On fire (x5 combo)', emoji: '🔥' },
   big_brain: { id: 'big_brain', label: 'Big Brain (scored 90+)', emoji: '🤯' },
   full_clear: { id: 'full_clear', label: 'Full Clear', emoji: '🏆' },
-  high_roller: { id: 'high_roller', label: 'High Roller', emoji: '🎰' }
+  high_roller: { id: 'high_roller', label: 'High Roller', emoji: '🎰' },
+  code_breaker: { id: 'code_breaker', label: 'Code Breaker', emoji: '🕵️' },
+  flawless: { id: 'flawless', label: 'Flawless Decode', emoji: '🎯' }
 }
 
 interface AwardOpts {

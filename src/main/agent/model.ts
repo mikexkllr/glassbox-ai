@@ -34,7 +34,13 @@ export async function makeModel(settings: Settings): Promise<BaseChatModel> {
       return new ChatOllama({
         model: settings.model,
         baseUrl: settings.ollamaBaseUrl || 'http://localhost:11434',
-        temperature: 0
+        temperature: settings.ollamaTemperature ?? 0,
+        numCtx: settings.ollamaNumCtx ?? 8192,
+        topP: settings.ollamaTopP ?? 0.9,
+        topK: settings.ollamaTopK ?? 40,
+        repeatPenalty: settings.ollamaRepeatPenalty ?? 1.1,
+        numPredict: settings.ollamaNumPredict ?? -1,
+        keepAlive: settings.ollamaKeepAlive || '5m'
       })
     }
     case 'bedrock': {

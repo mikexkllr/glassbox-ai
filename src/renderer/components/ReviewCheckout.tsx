@@ -6,7 +6,7 @@ import { useGame } from '../game/store'
 import { play } from '../game/sfx'
 import { cn } from '../lib/files'
 
-const COST = 100
+const COST_PER_SECTION = 220
 
 const DECISIONS: { id: ReviewDecision; label: string; emoji: string; blurb: string; sel: string }[] = [
   { id: 'approve', label: 'Approve', emoji: '✅', blurb: 'Ship it. You get it.', sel: 'border-glass-add bg-glass-add/15' },
@@ -16,11 +16,18 @@ const DECISIONS: { id: ReviewDecision; label: string; emoji: string; blurb: stri
 
 export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
   const diff = useStore((s) => s.diff)
+  const overview = useStore((s) => s.overview)
+  const walked = useStore((s) => s.walked)
   const coins = useGame((s) => s.coins)
   const spend = useGame((s) => s.spend)
   const unlock = useGame((s) => s.unlock)
   const pushFx = useGame((s) => s.pushFx)
   const sfxOn = useGame((s) => s.sfxOn)
+
+  const total = overview?.sections.length ?? 0
+  const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
+  const allExplored = total > 0 && done === total
+  const COST = Math.max(COST_PER_SECTION, COST_PER_SECTION * total)
 
   const [decision, setDecision] = useState<ReviewDecision>('approve')
   const [notes, setNotes] = useState('')
@@ -29,7 +36,7 @@ export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false)
 
   const cashOut = async () => {
-    if (!diff || busy) return
+    if (!diff || busy || !allExplored) return
     if (!spend(COST)) return
     setBusy(true)
     try {
@@ -105,12 +112,22 @@ export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
 
             <button
               onClick={cashOut}
-              disabled={busy}
+              disabled={busy || !allExplored || coins < COST}
               className="no-drag flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-glass-warm to-glass-accent2 py-3 text-[15px] font-black text-ink-950 transition-transform hover:scale-[1.01] disabled:opacity-60"
             >
               {busy ? '🎲 Drafting your review…' : `🎰 Pull the lever — draft review (−${COST}🪙)`}
             </button>
-            {coins < COST && <p className="mt-2 text-center text-[12px] text-glass-del">Earn {COST - coins} more coins by exploring the change.</p>}
+            {!allExplored ? (
+              <p className="mt-2 text-center text-[12px] text-glass-warm">
+                🔒 Explore all {total} sections first to unlock your verdict ({done}/{total} done).
+              </p>
+            ) : (
+              coins < COST && (
+                <p className="mt-2 text-center text-[12px] text-glass-del">
+                  Earn {COST - coins} more coins — keep learning to afford your verdict.
+                </p>
+              )
+            )}
           </>
         ) : (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">

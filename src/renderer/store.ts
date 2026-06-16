@@ -4,11 +4,17 @@ import type {
   ChatMessage,
   DiffSummary,
   Overview,
+  ScoreResult,
   SectionPlan,
   Settings,
   TrailEntry,
   WalkthroughSection
 } from '@shared/types'
+
+export interface SelfCheckResult {
+  guess: string
+  score: ScoreResult
+}
 
 export type Depth = 'gist' | 'deep'
 export type ViewMode = 'presentation' | 'scroll'
@@ -53,6 +59,7 @@ interface State {
   slideIndex: number // 0 = overview, 1..N = sections[n-1]
   activeTrace: ActiveTrace | null
   selfCheckRevealed: string[] // chunk/section ids revealed
+  selfCheckResults: Record<string, SelfCheckResult> // persisted per section across nav
   openSections: Record<string, boolean>
 
   // live agent telemetry, keyed by scope (section id, "overview", "chat", ...)
@@ -79,6 +86,7 @@ interface State {
   ensureOverview: () => Promise<void>
   ensureSection: (plan: SectionPlan) => Promise<void>
   markWalked: (id: string) => void
+  setSelfCheckResult: (sectionId: string, result: SelfCheckResult) => void
   setSectionOpen: (id: string, open: boolean) => void
   setViewMode: (m: ViewMode) => void
   setSlide: (n: number) => void
@@ -131,6 +139,7 @@ export const useStore = create<State>((set, get) => ({
   slideIndex: 0,
   activeTrace: null,
   selfCheckRevealed: [],
+  selfCheckResults: {},
   openSections: {},
 
   live: {},
@@ -202,7 +211,8 @@ export const useStore = create<State>((set, get) => ({
         live: {},
         chatHistory: [],
         openSections: {},
-        slideIndex: 0
+        slideIndex: 0,
+        selfCheckResults: {}
       })
       if (!get().overview) {
         await get().ensureOverview()
@@ -229,7 +239,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   backToOnboarding() {
-    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0 })
+    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
   },
 
   async ensureSection(plan) {
@@ -255,6 +265,10 @@ export const useStore = create<State>((set, get) => ({
   markWalked(id) {
     set((s) => (s.walked.includes(id) ? s : { walked: [...s.walked, id] }))
     persist(get)
+  },
+
+  setSelfCheckResult(sectionId, result) {
+    set((s) => ({ selfCheckResults: { ...s.selfCheckResults, [sectionId]: result } }))
   },
 
   setSectionOpen(id, open) {

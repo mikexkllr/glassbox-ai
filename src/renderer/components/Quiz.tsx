@@ -16,7 +16,8 @@ export default function Quiz({ q, sectionId, index }: { q: QuizQuestion; section
   const mark = useGame((s) => s.mark)
   const sfxOn = useGame((s) => s.sfxOn)
 
-  const [picked, setPicked] = useState<number | null>(null)
+  const wasSolved = useGame((s) => !!s.rewarded[`quizsolved:${sectionId}:${q.id}`])
+  const [picked, setPicked] = useState<number | null>(wasSolved ? q.correctIndex : null)
   const [attempts, setAttempts] = useState(0)
   const solved = picked === q.correctIndex
 

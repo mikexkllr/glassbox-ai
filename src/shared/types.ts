@@ -72,6 +72,13 @@ export interface Settings {
   opencodeZenBaseUrl?: string
   // Ollama
   ollamaBaseUrl?: string
+  ollamaNumCtx?: number
+  ollamaTemperature?: number
+  ollamaTopP?: number
+  ollamaTopK?: number
+  ollamaRepeatPenalty?: number
+  ollamaNumPredict?: number
+  ollamaKeepAlive?: string
   // Bedrock
   bedrockRegion?: string
   awsAccessKeyId?: string
@@ -81,6 +88,8 @@ export interface Settings {
   vertexLocation?: string
   // Investigation budget per section.
   maxFilesPerSection: number
+  // Generate the next section in the background while reading the current one.
+  prefetchNext: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,9 +97,17 @@ export const DEFAULT_SETTINGS: Settings = {
   model: 'claude-opus-4-8',
   opencodeZenBaseUrl: 'https://opencode.ai/zen/v1',
   ollamaBaseUrl: 'http://localhost:11434',
+  ollamaNumCtx: 8192,
+  ollamaTemperature: 0,
+  ollamaTopP: 0.9,
+  ollamaTopK: 40,
+  ollamaRepeatPenalty: 1.1,
+  ollamaNumPredict: -1,
+  ollamaKeepAlive: '5m',
   bedrockRegion: 'us-east-1',
   vertexLocation: 'us-central1',
-  maxFilesPerSection: 12
+  maxFilesPerSection: 12,
+  prefetchNext: false
 }
 
 export const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -297,6 +314,7 @@ export interface GlassboxApi {
   getSettings: () => Promise<Settings>
   saveSettings: (settings: Settings) => Promise<Settings>
   testModel: () => Promise<{ ok: boolean; message: string }>
+  listOllamaModels: (baseUrl: string) => Promise<{ ok: boolean; models: string[]; message?: string }>
 
   generateOverview: (diff: DiffSummary) => Promise<Overview>
   generateSection: (diff: DiffSummary, plan: SectionPlan) => Promise<WalkthroughSection>

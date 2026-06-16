@@ -12,23 +12,26 @@ import { cn } from '../lib/files'
  */
 export default function SelfCheck({ check, sectionId }: { check: SelfCheckType; sectionId: string }) {
   const diff = useStore((s) => s.diff)
+  const saved = useStore((s) => s.selfCheckResults[sectionId])
+  const setSelfCheckResult = useStore((s) => s.setSelfCheckResult)
   const award = useGame((s) => s.award)
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
   const sfxOn = useGame((s) => s.sfxOn)
 
-  const [phase, setPhase] = useState<'ask' | 'revealed'>('ask')
-  const [guess, setGuess] = useState('')
+  // Restore from store so answers persist across section navigation.
+  const [phase, setPhase] = useState<'ask' | 'revealed'>(saved ? 'revealed' : 'ask')
+  const [guess, setGuess] = useState(saved?.guess ?? '')
   const [scoring, setScoring] = useState(false)
-  const [score, setScore] = useState<ScoreResult | null>(null)
+  const [score, setScore] = useState<ScoreResult | null>(saved?.score ?? null)
 
   const submitGuess = async (e: React.MouseEvent) => {
     if (!diff || !guess.trim()) return
     setScoring(true)
     if (sfxOn) play('whoosh')
+    let res: ScoreResult
     try {
-      const res = await window.glassbox.scoreAnswer(diff, check.prompt, check.answer, guess)
-      setScore(res)
+      res = await window.glassbox.scoreAnswer(diff, check.prompt, check.answer, guess)
       // Base for engaging + bonus scaled by how good the answer was.
       const base = rewardOnce(`selfcheck:${sectionId}`, 10, { reason: 'good interaction' })
       const bonus = Math.round(res.score / 4) // up to +25
@@ -36,8 +39,10 @@ export default function SelfCheck({ check, sectionId }: { check: SelfCheckType; 
       if (res.score >= 90) unlock('big_brain')
       void base
     } catch {
-      setScore({ score: 50, verdict: 'Nice try!', good: 'You engaged with it.', missing: 'Could not reach the model.' })
+      res = { score: 50, verdict: 'Nice try!', good: 'You engaged with it.', missing: 'Could not reach the model.' }
     }
+    setScore(res)
+    setSelfCheckResult(sectionId, { guess, score: res })
     setScoring(false)
     setPhase('revealed')
   }

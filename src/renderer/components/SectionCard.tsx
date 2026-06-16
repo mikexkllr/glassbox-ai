@@ -13,6 +13,7 @@ import Quiz from './Quiz'
 import Insights from './Insights'
 import LootChest from './LootChest'
 import LessonMode from './LessonMode'
+import SectionVault from './MiniGame'
 import { useGame } from '../game/store'
 
 export default function SectionCard({ plan, index, presentation }: { plan: SectionPlan; index: number; presentation?: boolean }) {
@@ -25,6 +26,8 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
   const storeOpen = useStore((s) => s.openSections[plan.id] ?? index === 0)
   const setSectionOpen = useStore((s) => s.setSectionOpen)
   const open = presentation ? true : storeOpen
+  const prefetchNext = useStore((s) => s.settings?.prefetchNext)
+  const nextPlan = useStore((s) => s.overview?.sections[index + 1])
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
@@ -42,8 +45,10 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
       markWalked(plan.id)
       rewardOnce(`section:open:${plan.id}`, 10, { reason: 'locked in 🔒', sound: 'whoosh' })
       unlock('first_section')
+      // Background prefetch: generate the next section while the user reads this one.
+      if (prefetchNext && nextPlan) ensureSection(nextPlan)
     }
-  }, [open, section])
+  }, [open, section, prefetchNext])
 
   const activeValue = section?.traceableValues.find((v) => v.id === activeValueId) ?? null
   const activeStep = activeValue?.steps[stepIndex]
@@ -135,6 +140,8 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
                       ))}
                     </div>
                   )}
+
+                  <SectionVault section={section} sectionId={plan.id} />
 
                   <LootChest
                     sectionId={plan.id}

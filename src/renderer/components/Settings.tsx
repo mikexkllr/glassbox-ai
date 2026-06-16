@@ -10,6 +10,8 @@ export default function SettingsModal() {
   const [draft, setDraft] = useState<Settings | null>(stored)
   const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null)
   const [testing, setTesting] = useState(false)
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
   useEffect(() => setDraft(stored), [stored])
   if (!draft) return null
@@ -105,9 +107,53 @@ export default function SettingsModal() {
         )}
 
         {draft.provider === 'ollama' && (
-          <Field label="Ollama base URL">
-            <input value={draft.ollamaBaseUrl ?? ''} onChange={(e) => set({ ollamaBaseUrl: e.target.value })} className="input" />
-          </Field>
+          <div className="mb-4 rounded-xl border border-ink-700 bg-ink-850/40 p-3">
+            <div className="mb-2 text-[12px] font-semibold text-glass-accent">Ollama controls</div>
+            <Field label="Base URL">
+              <div className="flex gap-2">
+                <input value={draft.ollamaBaseUrl ?? ''} onChange={(e) => set({ ollamaBaseUrl: e.target.value })} className="input" />
+                <button
+                  onClick={async () => {
+                    setLoadingModels(true)
+                    const res = await window.glassbox.listOllamaModels(draft.ollamaBaseUrl || 'http://localhost:11434')
+                    setOllamaModels(res.models)
+                    if (!res.ok) setTest({ ok: false, message: `Ollama: ${res.message ?? 'could not list models'}` })
+                    setLoadingModels(false)
+                  }}
+                  className="no-drag whitespace-nowrap rounded-lg border border-ink-700 px-3 text-[12px] hover:border-ink-600 disabled:opacity-50"
+                  disabled={loadingModels}
+                >
+                  {loadingModels ? '…' : 'Load models'}
+                </button>
+              </div>
+            </Field>
+            {ollamaModels.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {ollamaModels.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => set({ model: m })}
+                    className={`no-drag rounded-full px-2.5 py-1 text-[11px] ${
+                      draft.model === m ? 'bg-glass-accent text-ink-950' : 'border border-ink-700 text-gray-300 hover:border-ink-600'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <NumField label="Context window (num_ctx)" value={draft.ollamaNumCtx ?? 8192} step={512} min={512} onChange={(v) => set({ ollamaNumCtx: v })} />
+              <NumField label="Max tokens (num_predict, -1=∞)" value={draft.ollamaNumPredict ?? -1} step={128} min={-1} onChange={(v) => set({ ollamaNumPredict: v })} />
+              <NumField label="Temperature" value={draft.ollamaTemperature ?? 0} step={0.1} min={0} max={2} onChange={(v) => set({ ollamaTemperature: v })} />
+              <NumField label="Repeat penalty" value={draft.ollamaRepeatPenalty ?? 1.1} step={0.05} min={0.5} max={2} onChange={(v) => set({ ollamaRepeatPenalty: v })} />
+              <NumField label="top_p" value={draft.ollamaTopP ?? 0.9} step={0.05} min={0} max={1} onChange={(v) => set({ ollamaTopP: v })} />
+              <NumField label="top_k" value={draft.ollamaTopK ?? 40} step={1} min={0} onChange={(v) => set({ ollamaTopK: v })} />
+            </div>
+            <Field label="Keep alive" hint='How long to keep the model loaded, e.g. "5m", "1h", "-1" for forever.'>
+              <input value={draft.ollamaKeepAlive ?? ''} onChange={(e) => set({ ollamaKeepAlive: e.target.value })} className="input" />
+            </Field>
+          </div>
         )}
 
         {draft.provider === 'bedrock' && (
@@ -153,6 +199,24 @@ export default function SettingsModal() {
           />
         </Field>
 
+        <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-lg border border-ink-700 bg-ink-850/40 p-3">
+          <input
+            type="checkbox"
+            checked={draft.prefetchNext}
+            onChange={(e) => set({ prefetchNext: e.target.checked })}
+            className="no-drag mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="text-[13px] font-medium text-gray-200">Prefetch next section in the background</span>
+            <span className="mt-0.5 block text-[11px] text-ink-600">
+              Generates the next section while you explore the current one — no waiting between chapters. Ideal for local Ollama.
+              {draft.provider !== 'ollama' && (
+                <span className="text-glass-warm"> ⚠ On cloud providers this spends more tokens upfront.</span>
+              )}
+            </span>
+          </span>
+        </label>
+
         {test && (
           <div className={`mb-3 rounded-lg px-3 py-2 text-[12.5px] ${test.ok ? 'bg-glass-add/15 text-glass-add' : 'bg-glass-del/15 text-glass-del'}`}>
             {test.message}
@@ -174,6 +238,37 @@ export default function SettingsModal() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function NumField({
+  label,
+  value,
+  step,
+  min,
+  max,
+  onChange
+}: {
+  label: string
+  value: number
+  step: number
+  min?: number
+  max?: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="mb-1">
+      <label className="mb-1 block text-[11px] font-medium text-gray-300">{label}</label>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="input no-drag"
+      />
     </div>
   )
 }

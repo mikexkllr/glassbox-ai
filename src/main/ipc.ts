@@ -52,6 +52,18 @@ export function registerIpc(): void {
 
   ipcMain.handle('settings:get', async () => getSettings())
   ipcMain.handle('settings:save', async (_e, s: Settings) => saveSettings(s))
+  ipcMain.handle('ollama:models', async (_e, baseUrl: string) => {
+    try {
+      const url = (baseUrl || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags'
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+      if (!res.ok) return { ok: false, models: [], message: `HTTP ${res.status}` }
+      const data = (await res.json()) as { models?: { name: string }[] }
+      return { ok: true, models: (data.models ?? []).map((m) => m.name).sort() }
+    } catch (e) {
+      return { ok: false, models: [], message: (e as Error).message }
+    }
+  })
+
   ipcMain.handle('settings:test', async () => {
     try {
       const model = await makeModel(await getSettings())
