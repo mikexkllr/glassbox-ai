@@ -11,6 +11,7 @@ import AgentStatus from './AgentStatus'
 import TrailChip from './InvestigationTrail'
 import Quiz from './Quiz'
 import Insights from './Insights'
+import LootChest from './LootChest'
 import { useGame } from '../game/store'
 
 export default function SectionCard({ plan, index }: { plan: SectionPlan; index: number }) {
@@ -131,6 +132,13 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
                       ))}
                     </div>
                   )}
+
+                  <LootChest
+                    sectionId={plan.id}
+                    insightCount={section.insights?.length ?? 0}
+                    quizIds={(section.quiz ?? []).map((q) => q.id)}
+                    hasSelfCheck={!!section.selfCheck}
+                  />
 
                   <TrailChip trail={section.investigationTrail} />
                 </>

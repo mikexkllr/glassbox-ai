@@ -13,6 +13,7 @@ export default function Quiz({ q, sectionId, index }: { q: QuizQuestion; section
   const award = useGame((s) => s.award)
   const breakCombo = useGame((s) => s.breakCombo)
   const unlock = useGame((s) => s.unlock)
+  const mark = useGame((s) => s.mark)
   const sfxOn = useGame((s) => s.sfxOn)
 
   const [picked, setPicked] = useState<number | null>(null)
@@ -31,6 +32,7 @@ export default function Quiz({ q, sectionId, index }: { q: QuizQuestion; section
         sound: 'correct',
         confetti: first
       })
+      mark(`quizsolved:${sectionId}:${q.id}`)
       if (first) unlock('quiz_ace')
     } else {
       setAttempts((a) => a + 1)

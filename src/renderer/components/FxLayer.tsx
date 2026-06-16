@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGame, type Fx } from '../game/store'
 
@@ -8,6 +8,21 @@ const CONFETTI_COLORS = ['#7c9cff', '#5ee0c0', '#ffb86b', '#f85149', '#ffd23f', 
 export default function FxLayer() {
   const fx = useGame((s) => s.fx)
   const pop = useGame((s) => s.popFx)
+  const seen = useRef(new Set<number>())
+
+  // Screen shake on big wins.
+  useEffect(() => {
+    for (const f of fx) {
+      if (seen.current.has(f.id)) continue
+      seen.current.add(f.id)
+      if (f.kind === 'crit' || f.kind === 'jackpot' || f.kind === 'levelup') {
+        const cls = f.kind === 'jackpot' ? 'shake-hard' : 'shake'
+        document.body.classList.add(cls)
+        setTimeout(() => document.body.classList.remove(cls), 450)
+      }
+    }
+    if (seen.current.size > 200) seen.current = new Set(fx.map((f) => f.id))
+  }, [fx])
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[200] overflow-hidden">
@@ -24,17 +39,44 @@ function FxItem({ fx, done }: { fx: Fx; done: () => void }) {
   if (fx.kind === 'coin') {
     const x = fx.x ?? window.innerWidth - 150
     const y = fx.y ?? 70
+    const isCrit = !!fx.crit
     return (
       <motion.div
-        className="absolute select-none whitespace-nowrap text-[18px] font-extrabold"
-        style={{ left: x, top: y, color: fx.tone === 'bad' ? '#f85149' : '#ffd23f', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}
+        className="absolute select-none whitespace-nowrap font-extrabold"
+        style={{
+          left: x,
+          top: y,
+          fontSize: isCrit ? 26 : 18,
+          color: fx.tone === 'bad' ? '#f85149' : isCrit ? '#ff5db1' : '#ffd23f',
+          textShadow: isCrit ? '0 0 14px rgba(255,93,177,0.9)' : '0 2px 8px rgba(0,0,0,0.6)'
+        }}
         initial={{ opacity: 0, scale: 0.4, y: 0 }}
-        animate={{ opacity: 1, scale: 1.15, y: -70 }}
+        animate={{ opacity: 1, scale: isCrit ? 1.4 : 1.15, y: -80 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 1.1, ease: 'easeOut' }}
         onAnimationComplete={done}
       >
-        +{fx.amount} 🪙 {fx.text && <span className="text-[12px] font-semibold text-white/80">{fx.text}</span>}
+        +{fx.amount} 🪙{isCrit && <span className="ml-1">×{fx.crit}!</span>}{' '}
+        {fx.text && <span className="text-[12px] font-semibold text-white/80">{fx.text}</span>}
+      </motion.div>
+    )
+  }
+
+  if (fx.kind === 'crit') {
+    return (
+      <motion.div
+        className="absolute inset-x-0 top-1/4 flex justify-center"
+        initial={{ opacity: 0, scale: 0.3, rotate: -12 }}
+        animate={{ opacity: [0, 1, 1, 0], scale: [0.3, 1.25, 1.1, 1], rotate: [-12, 4, -2, 0] }}
+        transition={{ duration: 1.1, ease: 'easeOut' }}
+        onAnimationComplete={done}
+      >
+        <div
+          className="text-[64px] font-black italic"
+          style={{ color: '#ff5db1', textShadow: '0 0 30px rgba(255,93,177,0.8), 0 4px 12px rgba(0,0,0,0.6)' }}
+        >
+          {fx.text} ×{fx.amount}
+        </div>
       </motion.div>
     )
   }

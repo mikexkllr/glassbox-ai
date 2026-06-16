@@ -56,6 +56,8 @@ type Sound =
   | 'combo'
   | 'reveal'
   | 'jackpot'
+  | 'crit'
+  | 'chest'
 
 export function play(name: Sound) {
   switch (name) {
@@ -97,5 +99,20 @@ export function play(name: Sound) {
       )
       ;[784, 1047].forEach((f, i) => blip(f, 0.4, 'triangle', 0.12, undefined, 0.5 + i * 0.05))
       break
+    case 'crit':
+      blip(880, 0.08, 'square', 0.18, 1760)
+      blip(1320, 0.14, 'square', 0.16, 1980, 0.06)
+      break
+    case 'chest':
+      blip(330, 0.12, 'triangle', 0.12, 660)
+      ;[659, 988, 1319].forEach((f, i) => blip(f, 0.16, 'square', 0.16, undefined, 0.12 + i * 0.07))
+      break
   }
+}
+
+/** Combo blip whose pitch rises with the combo count (Duolingo-style escalation). */
+export function playCombo(combo: number) {
+  const base = 660
+  const freq = Math.min(2200, base * Math.pow(1.06, combo))
+  blip(freq, 0.08, 'square', 0.14, freq * 1.4)
 }

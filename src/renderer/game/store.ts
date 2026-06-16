@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { play, setMuted } from './sfx'
+import { play, playCombo, setMuted } from './sfx'
 
 export const COMBO_WINDOW_MS = 7000
 export const XP_PER_LEVEL = 400
@@ -20,7 +20,7 @@ export function rankTitle(level: number): string {
   return RANKS[Math.min(RANKS.length - 1, level - 1)] ?? 'Legend'
 }
 
-export type FxKind = 'coin' | 'confetti' | 'levelup' | 'combo' | 'toast' | 'jackpot'
+export type FxKind = 'coin' | 'confetti' | 'levelup' | 'combo' | 'toast' | 'jackpot' | 'crit'
 
 export interface Fx {
   id: number
@@ -30,6 +30,7 @@ export interface Fx {
   x?: number
   y?: number
   tone?: 'good' | 'bad' | 'neutral'
+  crit?: number
 }
 
 export interface Achievement {
@@ -76,6 +77,7 @@ interface GameState {
   breakCombo: () => void
   toggleSfx: () => void
   unlock: (id: string) => void
+  mark: (key: string) => void
   pushFx: (fx: Omit<Fx, 'id'>) => void
   popFx: (id: number) => void
   resetProfile: () => void
@@ -146,7 +148,11 @@ export const useGame = create<GameState>((set, get) => {
       const within = now - s.lastEarnAt < COMBO_WINDOW_MS
       const combo = within ? s.combo + 1 : 1
       const mult = comboMultiplier(combo)
-      const total = Math.max(1, Math.round(base * mult))
+
+      // Variable reward: random crit (the slot-machine core).
+      const roll = Math.random()
+      const critMult = roll < 0.04 ? 3 : roll < 0.2 ? 2 : 1
+      const total = Math.max(1, Math.round(base * mult * critMult))
       const prevLevel = s.level()
 
       set({
@@ -166,12 +172,18 @@ export const useGame = create<GameState>((set, get) => {
         text: opts.reason,
         x: opts.x,
         y: opts.y,
-        tone: 'good'
+        tone: 'good',
+        crit: critMult > 1 ? critMult : undefined
       })
+
+      if (critMult > 1) {
+        get().pushFx({ kind: 'crit', amount: critMult, text: critMult === 3 ? 'MEGA CRIT!' : 'CRIT!' })
+        if (s.sfxOn) play(critMult === 3 ? 'jackpot' : 'crit')
+      }
 
       if (combo >= 2) {
         get().pushFx({ kind: 'combo', amount: combo, text: `${mult.toFixed(2)}x` })
-        if (s.sfxOn) play('combo')
+        if (s.sfxOn) playCombo(combo)
       }
       if (combo === 5) get().unlock('hot_streak')
       if (opts.confetti) get().pushFx({ kind: 'confetti' })
@@ -225,6 +237,12 @@ export const useGame = create<GameState>((set, get) => {
       get().pushFx({ kind: 'toast', text: `${a.emoji} ${a.label}`, tone: 'good' })
       get().pushFx({ kind: 'confetti' })
       if (s.sfxOn) play('jackpot')
+      persist()
+    },
+
+    mark: (key) => {
+      if (get().rewarded[key]) return
+      set((s) => ({ rewarded: { ...s.rewarded, [key]: true } }))
       persist()
     },
 
