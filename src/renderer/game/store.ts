@@ -1,8 +1,24 @@
 import { create } from 'zustand'
 import { play, setMuted } from './sfx'
 
-const COMBO_WINDOW_MS = 7000
+export const COMBO_WINDOW_MS = 7000
 export const XP_PER_LEVEL = 400
+
+const RANKS = [
+  'Intern',
+  'Script Kiddie',
+  'Code Reader',
+  'Diff Diver',
+  'Reviewer',
+  'Senior',
+  'Architect',
+  'Code Whisperer',
+  'Refactor Wizard',
+  'Legend'
+]
+export function rankTitle(level: number): string {
+  return RANKS[Math.min(RANKS.length - 1, level - 1)] ?? 'Legend'
+}
 
 export type FxKind = 'coin' | 'confetti' | 'levelup' | 'combo' | 'toast' | 'jackpot'
 
