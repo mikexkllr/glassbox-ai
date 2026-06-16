@@ -111,6 +111,7 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
             return (
               <div
                 key={i}
+                id={`line-${file}-${ln}`}
                 className={cn(
                   'code-line flex whitespace-pre px-2',
                   glow && 'trace-glow',

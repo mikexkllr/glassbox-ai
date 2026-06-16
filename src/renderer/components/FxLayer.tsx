@@ -15,7 +15,7 @@ export default function FxLayer() {
     for (const f of fx) {
       if (seen.current.has(f.id)) continue
       seen.current.add(f.id)
-      if (f.kind === 'crit' || f.kind === 'jackpot' || f.kind === 'levelup') {
+      if (f.kind === 'crit' || f.kind === 'jackpot' || f.kind === 'levelup' || f.kind === 'hype') {
         const cls = f.kind === 'jackpot' ? 'shake-hard' : 'shake'
         document.body.classList.add(cls)
         setTimeout(() => document.body.classList.remove(cls), 450)
@@ -58,6 +58,29 @@ function FxItem({ fx, done }: { fx: Fx; done: () => void }) {
       >
         +{fx.amount} 🪙{isCrit && <span className="ml-1">×{fx.crit}!</span>}{' '}
         {fx.text && <span className="text-[12px] font-semibold text-white/80">{fx.text}</span>}
+      </motion.div>
+    )
+  }
+
+  if (fx.kind === 'hype') {
+    return (
+      <motion.div
+        className="absolute inset-x-0 top-[58%] flex justify-center"
+        initial={{ opacity: 0, scale: 2, y: -10 }}
+        animate={{ opacity: [0, 1, 1, 0], scale: [2, 0.92, 1, 1], y: 0 }}
+        transition={{ duration: 1.3, ease: 'easeOut' }}
+        onAnimationComplete={done}
+      >
+        <div
+          className="text-[40px] font-black italic tracking-tight"
+          style={{
+            color: '#5ee0c0',
+            WebkitTextStroke: '1.5px rgba(0,0,0,0.5)',
+            textShadow: '0 0 26px rgba(94,224,192,0.85), 0 4px 10px rgba(0,0,0,0.6)'
+          }}
+        >
+          {fx.text}
+        </div>
       </motion.div>
     )
   }

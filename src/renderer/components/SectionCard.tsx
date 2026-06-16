@@ -40,7 +40,7 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
   useEffect(() => {
     if (open && section) {
       markWalked(plan.id)
-      rewardOnce(`section:open:${plan.id}`, 10, { reason: 'section unlocked', sound: 'whoosh' })
+      rewardOnce(`section:open:${plan.id}`, 10, { reason: 'locked in 🔒', sound: 'whoosh' })
       unlock('first_section')
     }
   }, [open, section])

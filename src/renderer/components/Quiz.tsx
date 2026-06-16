@@ -28,7 +28,7 @@ export default function Quiz({ q, sectionId, index }: { q: QuizQuestion; section
       award(first ? REWARD_FIRST_TRY : REWARD_RETRY, {
         x: e.clientX,
         y: e.clientY,
-        reason: first ? 'first try!' : 'got it',
+        reason: first ? 'W · no cap 💯' : 'gng got it',
         sound: 'correct',
         confetti: first
       })

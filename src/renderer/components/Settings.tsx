@@ -27,7 +27,7 @@ export default function SettingsModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-6" onClick={close}>
+    <div data-overlay className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-6" onClick={close}>
       <div
         className="max-h-full w-[560px] overflow-y-auto rounded-2xl border border-ink-700 bg-ink-900 p-6"
         onClick={(e) => e.stopPropagation()}

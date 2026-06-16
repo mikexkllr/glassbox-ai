@@ -86,7 +86,7 @@ export default function LessonMode({
   }, [i, isLast])
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-ink-950/90 p-6" onClick={onClose}>
+    <div data-overlay className="fixed inset-0 z-[160] flex items-center justify-center bg-ink-950/90 p-6" onClick={onClose}>
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

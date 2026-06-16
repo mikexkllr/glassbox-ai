@@ -22,6 +22,7 @@ export default function Presentation() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (document.querySelector('[data-overlay]')) return // a lesson/arcade/modal is open
       if (e.key === 'ArrowRight') setSlide(slide + 1)
       else if (e.key === 'ArrowLeft') setSlide(slide - 1)
     }
@@ -31,9 +32,26 @@ export default function Presentation() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* scope breadcrumb */}
+      <div className="mx-auto w-full max-w-3xl px-6 pt-4 text-[11px] text-ink-600">
+        <span className="text-glass-accent">Walkthrough</span>
+        <span className="mx-1">›</span>
+        {atOverview ? (
+          <span className="text-gray-300">✦ Big picture</span>
+        ) : (
+          <>
+            <span className="text-gray-300">
+              Section {slide}/{plans.length}
+            </span>
+            <span className="mx-1">›</span>
+            <span className="text-gray-200">{plan?.title}</span>
+          </>
+        )}
+      </div>
+
       {/* slide */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl p-6">
+        <div className="mx-auto max-w-3xl px-6 pb-6 pt-2">
           <AnimatePresence mode="wait">
             <motion.div
               key={slide}

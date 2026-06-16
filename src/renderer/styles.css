@@ -107,3 +107,9 @@ body {
 }
 .shake { animation: shake 0.45s ease-in-out; }
 .shake-hard { animation: shake-hard 0.45s ease-in-out; }
+
+@keyframes line-flash {
+  0% { background: rgba(124, 156, 255, 0.4); box-shadow: inset 3px 0 0 #7c9cff; }
+  100% { background: transparent; box-shadow: none; }
+}
+.line-flash { animation: line-flash 1.3s ease-out; }

@@ -9,7 +9,7 @@ type Tab = 'daily' | 'quests' | 'slots' | 'stats'
 export default function Arcade({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('daily')
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
+    <div data-overlay className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 16 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}

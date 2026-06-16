@@ -20,7 +20,20 @@ export function rankTitle(level: number): string {
   return RANKS[Math.min(RANKS.length - 1, level - 1)] ?? 'Legend'
 }
 
-export type FxKind = 'coin' | 'confetti' | 'levelup' | 'combo' | 'toast' | 'jackpot' | 'crit'
+export type FxKind = 'coin' | 'confetti' | 'levelup' | 'combo' | 'toast' | 'jackpot' | 'crit' | 'hype'
+
+const HYPE: Record<number, string> = {
+  3: 'NICE 🔥',
+  5: 'INSANE 🔥🔥',
+  7: 'CRACKED 🤯',
+  9: 'GODLIKE 🗿',
+  12: 'BRAINROTTED 🧠💥'
+}
+function hypeFor(combo: number): string | null {
+  if (HYPE[combo]) return HYPE[combo]
+  if (combo > 12 && combo % 3 === 0) return `UNSTOPPABLE ×${combo} 💀`
+  return null
+}
 
 export interface Fx {
   id: number
@@ -217,6 +230,11 @@ export const useGame = create<GameState>((set, get) => {
       if (combo >= 2) {
         get().pushFx({ kind: 'combo', amount: combo, text: `${mult.toFixed(2)}x` })
         if (s.sfxOn) playCombo(combo)
+      }
+      const hype = hypeFor(combo)
+      if (hype) {
+        get().pushFx({ kind: 'hype', amount: combo, text: hype })
+        if (s.sfxOn) play('crit')
       }
       if (combo === 5) get().unlock('hot_streak')
       if (opts.confetti) get().pushFx({ kind: 'confetti' })

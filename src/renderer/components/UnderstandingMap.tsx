@@ -1,7 +1,18 @@
+import { useState } from 'react'
 import { useStore } from '../store'
 import { useGame } from '../game/store'
 import { cn } from '../lib/files'
 import type { WalkChunk } from '@shared/types'
+
+const KIND_SYM: Record<string, string> = {
+  function: 'ƒ',
+  variable: 'x',
+  constant: 'C',
+  type: 'T',
+  parameter: 'p',
+  import: '↓',
+  other: '•'
+}
 
 const KIND_DOT: Record<string, string> = {
   added: 'bg-glass-add',
@@ -22,6 +33,9 @@ export default function UnderstandingMap() {
   const setSlide = useStore((s) => s.setSlide)
   const rewarded = useGame((s) => s.rewarded)
 
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const toggleChunk = (key: string) => setExpanded((e) => ({ ...e, [key]: !e[key] }))
+
   const plans = overview?.sections ?? []
   const total = plans.length
   const done = plans.filter((p) => walked.includes(p.id)).length
@@ -40,6 +54,20 @@ export default function UnderstandingMap() {
       () => document.getElementById(`chunk-${sectionId}-${chunk.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
       present ? 140 : 90
     )
+  }
+  const goLine = (sectionId: string, idx: number, file: string, line: number) => {
+    setSectionOpen(sectionId, true)
+    if (present) setSlide(idx + 1)
+    setTimeout(() => {
+      const el = document.getElementById(`line-${file}-${line}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (el) {
+        el.classList.remove('line-flash')
+        void el.offsetWidth // restart animation
+        el.classList.add('line-flash')
+        setTimeout(() => el.classList.remove('line-flash'), 1400)
+      }
+    }, present ? 220 : 140)
   }
 
   return (
@@ -76,7 +104,7 @@ export default function UnderstandingMap() {
           const isWalked = walked.includes(p.id)
           const isBusy = live[p.id]?.busy
           const section = sections[p.id]
-          const isOpen = present ? slideIndex === i + 1 : openSections[p.id] ?? i === 0
+          const isOpen = present ? !!section : openSections[p.id] ?? i === 0
           const isCurrent = present && slideIndex === i + 1
           return (
             <div key={p.id}>
@@ -109,17 +137,52 @@ export default function UnderstandingMap() {
                 <div className="mb-1 ml-3 border-l border-ink-800 pl-2">
                   {section.chunks.map((c) => {
                     const learned = !!rewarded[`lessondone:${c.file}:${c.id}`]
+                    const ckey = `${p.id}:${c.id}`
+                    const symbols = section.inlineExplanations
+                      .filter((e) => e.file === c.file && e.line >= c.startLine && e.line <= c.endLine)
+                      .sort((a, b) => a.line - b.line)
+                    const isExp = expanded[ckey] ?? true
                     return (
-                      <button
-                        key={c.id}
-                        onClick={() => goChunk(p.id, i, c)}
-                        className="no-drag flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-ink-800/60"
-                        title={`${c.file}:${c.startLine}-${c.endLine}`}
-                      >
-                        <span className={cn('h-1.5 w-1.5 flex-none rounded-full', KIND_DOT[c.changeKind] ?? 'bg-ink-600')} />
-                        <span className={cn('truncate text-[11.5px]', learned ? 'text-gray-400' : 'text-gray-300')}>{c.title}</span>
-                        {learned && <span className="ml-auto text-[10px] text-glass-accent2">✓</span>}
-                      </button>
+                      <div key={c.id}>
+                        <div className="group flex items-center rounded-md hover:bg-ink-800/60">
+                          <button
+                            onClick={() => goChunk(p.id, i, c)}
+                            className="no-drag flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                            title={`${c.file}:${c.startLine}-${c.endLine}`}
+                          >
+                            <span className={cn('h-1.5 w-1.5 flex-none rounded-full', KIND_DOT[c.changeKind] ?? 'bg-ink-600')} />
+                            <span className={cn('truncate text-[11.5px]', learned ? 'text-gray-400' : 'text-gray-300')}>{c.title}</span>
+                            {learned && <span className="text-[10px] text-glass-accent2">✓</span>}
+                          </button>
+                          {symbols.length > 0 && (
+                            <button
+                              onClick={() => toggleChunk(ckey)}
+                              className="no-drag px-1.5 py-1.5 text-[9px] text-ink-600 hover:text-white"
+                              title={`${symbols.length} symbols`}
+                            >
+                              {isExp ? '▾' : '▸'}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* symbol level — scope all the way to the identifier */}
+                        {isExp && (
+                          <div className="ml-3 border-l border-ink-800 pl-2">
+                            {symbols.map((e, si) => (
+                              <button
+                                key={si}
+                                onClick={() => goLine(p.id, i, e.file, e.line)}
+                                className="no-drag flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-ink-800/60"
+                                title={`${e.kind} · line ${e.line}`}
+                              >
+                                <span className="w-3 flex-none text-center font-mono text-[9px] text-glass-accent">{KIND_SYM[e.kind] ?? '•'}</span>
+                                <span className="truncate font-mono text-[11px] text-gray-400">{e.symbol}</span>
+                                <span className="ml-auto font-mono text-[9.5px] text-ink-600">:{e.line}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                   {section.chunks.length === 0 && <div className="px-2 py-1 text-[10.5px] text-ink-600">no code blocks</div>}

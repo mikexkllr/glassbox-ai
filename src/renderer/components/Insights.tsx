@@ -29,7 +29,7 @@ function InsightCard({ text, rkey }: { text: string; rkey: string }) {
   const reveal = (e: React.MouseEvent) => {
     if (open) return
     setOpen(true)
-    rewardOnce(rkey, 5, { x: e.clientX, y: e.clientY, reason: 'insight', sound: 'reveal' })
+    rewardOnce(rkey, 5, { x: e.clientX, y: e.clientY, reason: 'big brain 🧠', sound: 'reveal' })
   }
 
   return (

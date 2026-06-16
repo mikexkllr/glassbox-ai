@@ -126,7 +126,7 @@ export const useStore = create<State>((set, get) => ({
   sections: {},
   walked: [],
 
-  depth: 'gist',
+  depth: 'deep',
   viewMode: 'presentation',
   slideIndex: 0,
   activeTrace: null,
