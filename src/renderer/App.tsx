@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useStore } from './store'
+import { useGame } from './game/store'
 import Onboarding from './components/Onboarding'
 import Walkthrough from './components/Walkthrough'
 import SettingsModal from './components/Settings'
@@ -13,6 +14,7 @@ export default function App() {
 
   useEffect(() => {
     init()
+    useGame.getState().touchDay()
     const off = window.glassbox.onAgentEvent(handleAgentEvent)
     return off
   }, [])

@@ -12,20 +12,22 @@ import TrailChip from './InvestigationTrail'
 import Quiz from './Quiz'
 import Insights from './Insights'
 import LootChest from './LootChest'
+import LessonMode from './LessonMode'
 import { useGame } from '../game/store'
 
-export default function SectionCard({ plan, index }: { plan: SectionPlan; index: number }) {
+export default function SectionCard({ plan, index, presentation }: { plan: SectionPlan; index: number; presentation?: boolean }) {
   const section = useStore((s) => s.sections[plan.id])
   const live = useStore((s) => s.live[plan.id])
   const depth = useStore((s) => s.depth)
   const walked = useStore((s) => s.walked.includes(plan.id))
   const ensureSection = useStore((s) => s.ensureSection)
   const markWalked = useStore((s) => s.markWalked)
+  const storeOpen = useStore((s) => s.openSections[plan.id] ?? index === 0)
+  const setSectionOpen = useStore((s) => s.setSectionOpen)
+  const open = presentation ? true : storeOpen
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
-
-  const [open, setOpen] = useState(index === 0)
 
   // trace state for this section
   const [activeValueId, setActiveValueId] = useState<string | null>(null)
@@ -47,9 +49,9 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
   const activeStep = activeValue?.steps[stepIndex]
 
   return (
-    <section id={`sec-${plan.id}`} className="scroll-mt-4 rounded-xl border border-ink-700 bg-ink-850/50">
+    <section id={`sec-${plan.id}`} className={cn('scroll-mt-4 rounded-xl', presentation ? '' : 'border border-ink-700 bg-ink-850/50')}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => !presentation && setSectionOpen(plan.id, !open)}
         className="no-drag flex w-full items-start gap-3 p-4 text-left"
       >
         <span
@@ -61,10 +63,10 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
           {walked ? '✓' : index + 1}
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-semibold text-white">{plan.title}</h3>
-          <p className="truncate text-[12.5px] text-ink-600">{plan.teaser}</p>
+          <h3 className={cn('font-semibold text-white', presentation ? 'text-[20px]' : 'text-[15px]')}>{plan.title}</h3>
+          <p className={cn('text-ink-600', presentation ? 'text-[13px]' : 'truncate text-[12.5px]')}>{plan.teaser}</p>
         </div>
-        <span className="mt-1 text-ink-600">{open ? '▾' : '▸'}</span>
+        {!presentation && <span className="mt-1 text-ink-600">{open ? '▾' : '▸'}</span>}
       </button>
 
       <AnimatePresence initial={false}>
@@ -92,6 +94,7 @@ export default function SectionCard({ plan, index }: { plan: SectionPlan; index:
                     {section.chunks.map((chunk) => (
                       <ChunkCard
                         key={chunk.id}
+                        sectionId={plan.id}
                         chunk={chunk}
                         explanations={section.inlineExplanations}
                         traceLines={traceLinesFor(activeValue, chunk.file)}
@@ -165,11 +168,13 @@ const CHANGE_META: Record<string, { label: string; cls: string; bar: string; sig
 }
 
 function ChunkCard({
+  sectionId,
   chunk,
   explanations,
   traceLines,
   activeLine
 }: {
+  sectionId: string
   chunk: WalkChunk
   explanations: WalkthroughSection['inlineExplanations']
   traceLines: Set<number>
@@ -180,6 +185,7 @@ function ChunkCard({
   const rewardOnce = useGame((s) => s.rewardOnce)
 
   const [storyOpen, setStoryOpen] = useState(depth === 'deep')
+  const [lessonOpen, setLessonOpen] = useState(false)
   useEffect(() => {
     if (depth === 'deep') setStoryOpen(true)
   }, [depth])
@@ -195,11 +201,12 @@ function ChunkCard({
 
   return (
     <motion.div
+      id={`chunk-${sectionId}-${chunk.id}`}
       initial={{ opacity: 0, y: 8 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.3 }}
-      className="overflow-hidden rounded-lg border border-ink-700 bg-ink-900"
+      className="scroll-mt-4 overflow-hidden rounded-lg border border-ink-700 bg-ink-900"
     >
       <div className="flex items-center gap-2 border-b border-ink-700 bg-ink-850 px-3 py-2">
         <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider ${meta.cls}`}>{meta.label}</span>
@@ -213,12 +220,20 @@ function ChunkCard({
           </span>
         )}
         <button
+          onClick={() => setLessonOpen(true)}
+          className="no-drag ml-auto rounded bg-glass-accent2/15 px-2 py-0.5 text-[11px] font-medium text-glass-accent2 hover:bg-glass-accent2/25"
+        >
+          ▶ Learn
+        </button>
+        <button
           onClick={toggleStory}
-          className="no-drag ml-auto rounded bg-ink-800 px-2 py-0.5 text-[11px] text-glass-accent hover:bg-ink-700"
+          className="no-drag rounded bg-ink-800 px-2 py-0.5 text-[11px] text-glass-accent hover:bg-ink-700"
         >
           {storyOpen ? 'hide story' : 'story ▸ +4🪙'}
         </button>
       </div>
+
+      {lessonOpen && <LessonMode chunk={chunk} explanations={explanations} onClose={() => setLessonOpen(false)} />}
 
       {/* always-visible "what changed here" — works in gist mode too */}
       <div className={`border-l-2 ${meta.bar} bg-ink-850/30 px-3 py-2`}>

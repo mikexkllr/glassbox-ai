@@ -8,6 +8,9 @@ import ChatPanel from './ChatPanel'
 import DepthDial from './DepthDial'
 import CoinHud from './CoinHud'
 import ReviewCheckout from './ReviewCheckout'
+import Arcade from './Arcade'
+import Presentation from './Presentation'
+import { cn } from '../lib/files'
 
 export default function Walkthrough() {
   const overview = useStore((s) => s.overview)
@@ -17,11 +20,14 @@ export default function Walkthrough() {
   const openSettings = useStore((s) => s.openSettings)
   const chatOpen = useStore((s) => s.chatOpen)
   const setChatOpen = useStore((s) => s.setChatOpen)
+  const viewMode = useStore((s) => s.viewMode)
+  const setViewMode = useStore((s) => s.setViewMode)
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
 
   const [checkout, setCheckout] = useState(false)
+  const [arcade, setArcade] = useState(false)
 
   const total = overview?.sections.length ?? 0
   const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
@@ -51,7 +57,28 @@ export default function Walkthrough() {
         <div className="ml-auto flex items-center gap-2">
           <CoinHud />
           <div className="mx-1 h-5 w-px bg-ink-700" />
+          <div className="no-drag flex items-center gap-1 rounded-full border border-ink-700 bg-ink-850 p-0.5">
+            {(['presentation', 'scroll'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                title={m === 'presentation' ? 'One section at a time' : 'All sections, scroll'}
+                className={cn(
+                  'rounded-full px-2.5 py-1 text-[12px] transition-colors',
+                  viewMode === m ? 'bg-glass-accent text-ink-950' : 'text-gray-300 hover:text-white'
+                )}
+              >
+                {m === 'presentation' ? '▭ Present' : '☰ Scroll'}
+              </button>
+            ))}
+          </div>
           <DepthDial />
+          <button
+            onClick={() => setArcade(true)}
+            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
+          >
+            🕹️
+          </button>
           <button
             onClick={() => setChatOpen(!chatOpen)}
             className={`no-drag rounded-lg border px-3 py-1.5 text-[12.5px] ${
@@ -75,22 +102,27 @@ export default function Walkthrough() {
       <div className="flex min-h-0 flex-1">
         <UnderstandingMap />
 
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl space-y-4 p-6">
-            <OverviewCard />
-            {overview?.sections.map((plan, i) => (
-              <SectionCard key={plan.id} plan={plan} index={i} />
-            ))}
-            {overview && (
-              <CashoutCta allDone={allDone} done={done} total={total} onClick={() => setCheckout(true)} />
-            )}
-          </div>
-        </main>
+        {viewMode === 'presentation' ? (
+          <Presentation />
+        ) : (
+          <main className="min-w-0 flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-3xl space-y-4 p-6">
+              <OverviewCard />
+              {overview?.sections.map((plan, i) => (
+                <SectionCard key={plan.id} plan={plan} index={i} />
+              ))}
+              {overview && (
+                <CashoutCta allDone={allDone} done={done} total={total} onClick={() => setCheckout(true)} />
+              )}
+            </div>
+          </main>
+        )}
 
         <ChatPanel />
       </div>
 
       {checkout && <ReviewCheckout onClose={() => setCheckout(false)} />}
+      {arcade && <Arcade onClose={() => setArcade(false)} />}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import type {
 } from '@shared/types'
 
 export type Depth = 'gist' | 'deep'
+export type ViewMode = 'presentation' | 'scroll'
 
 export interface LiveScope {
   status: string
@@ -48,8 +49,11 @@ interface State {
 
   // interaction state
   depth: Depth
+  viewMode: ViewMode
+  slideIndex: number // 0 = overview, 1..N = sections[n-1]
   activeTrace: ActiveTrace | null
   selfCheckRevealed: string[] // chunk/section ids revealed
+  openSections: Record<string, boolean>
 
   // live agent telemetry, keyed by scope (section id, "overview", "chat", ...)
   live: Record<string, LiveScope>
@@ -75,6 +79,9 @@ interface State {
   ensureOverview: () => Promise<void>
   ensureSection: (plan: SectionPlan) => Promise<void>
   markWalked: (id: string) => void
+  setSectionOpen: (id: string, open: boolean) => void
+  setViewMode: (m: ViewMode) => void
+  setSlide: (n: number) => void
   setDepth: (d: Depth) => void
   setActiveTrace: (t: ActiveTrace | null) => void
   revealSelfCheck: (id: string) => void
@@ -120,8 +127,11 @@ export const useStore = create<State>((set, get) => ({
   walked: [],
 
   depth: 'gist',
+  viewMode: 'presentation',
+  slideIndex: 0,
   activeTrace: null,
   selfCheckRevealed: [],
+  openSections: {},
 
   live: {},
 
@@ -190,7 +200,9 @@ export const useStore = create<State>((set, get) => ({
         sections: saved?.sections ?? {},
         walked: saved?.walked ?? [],
         live: {},
-        chatHistory: []
+        chatHistory: [],
+        openSections: {},
+        slideIndex: 0
       })
       if (!get().overview) {
         await get().ensureOverview()
@@ -217,7 +229,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   backToOnboarding() {
-    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [] })
+    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0 })
   },
 
   async ensureSection(plan) {
@@ -243,6 +255,18 @@ export const useStore = create<State>((set, get) => ({
   markWalked(id) {
     set((s) => (s.walked.includes(id) ? s : { walked: [...s.walked, id] }))
     persist(get)
+  },
+
+  setSectionOpen(id, open) {
+    set((s) => ({ openSections: { ...s.openSections, [id]: open } }))
+  },
+
+  setViewMode(m) {
+    set({ viewMode: m })
+  },
+  setSlide(n) {
+    const count = (get().overview?.sections.length ?? 0) + 1
+    set({ slideIndex: Math.max(0, Math.min(count - 1, n)) })
   },
 
   setDepth(d) {

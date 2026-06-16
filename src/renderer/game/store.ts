@@ -68,6 +68,14 @@ interface GameState {
   rewarded: Record<string, true>
   fx: Fx[]
 
+  // streak
+  streak: number
+  bestStreak: number
+  lastActiveDay: string
+  dailyClaimedDay: string
+  // lifetime stats
+  spins: number
+
   level: () => number
   levelProgress: () => { inLevel: number; needed: number; pct: number }
 
@@ -78,9 +86,23 @@ interface GameState {
   toggleSfx: () => void
   unlock: (id: string) => void
   mark: (key: string) => void
+  countPrefix: (prefix: string) => number
+  touchDay: () => void
+  claimDaily: () => number
+  recordSpin: () => void
   pushFx: (fx: Omit<Fx, 'id'>) => void
   popFx: (id: number) => void
   resetProfile: () => void
+}
+
+export function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+function dayDiff(a: string, b: string): number {
+  const da = Date.parse(a + 'T00:00:00')
+  const db = Date.parse(b + 'T00:00:00')
+  if (isNaN(da) || isNaN(db)) return 99
+  return Math.round((db - da) / 86_400_000)
 }
 
 let fxId = 1
@@ -116,7 +138,12 @@ export const useGame = create<GameState>((set, get) => {
         bestCombo: s.bestCombo,
         sfxOn: s.sfxOn,
         achievements: s.achievements,
-        rewarded: s.rewarded
+        rewarded: s.rewarded,
+        streak: s.streak,
+        bestStreak: s.bestStreak,
+        lastActiveDay: s.lastActiveDay,
+        dailyClaimedDay: s.dailyClaimedDay,
+        spins: s.spins
       })
     )
   }
@@ -134,6 +161,12 @@ export const useGame = create<GameState>((set, get) => {
     achievements: saved.achievements ?? [],
     rewarded: saved.rewarded ?? {},
     fx: [],
+
+    streak: saved.streak ?? 0,
+    bestStreak: saved.bestStreak ?? 0,
+    lastActiveDay: saved.lastActiveDay ?? '',
+    dailyClaimedDay: saved.dailyClaimedDay ?? '',
+    spins: saved.spins ?? 0,
 
     level: () => Math.floor(get().xp / XP_PER_LEVEL) + 1,
     levelProgress: () => {
@@ -246,11 +279,42 @@ export const useGame = create<GameState>((set, get) => {
       persist()
     },
 
+    countPrefix: (prefix) => Object.keys(get().rewarded).filter((k) => k.startsWith(prefix)).length,
+
+    touchDay: () => {
+      const today = todayStr()
+      const s = get()
+      if (s.lastActiveDay === today) return
+      const diff = s.lastActiveDay ? dayDiff(s.lastActiveDay, today) : 99
+      const streak = diff === 1 ? s.streak + 1 : 1
+      set({ streak, bestStreak: Math.max(s.bestStreak, streak), lastActiveDay: today })
+      persist()
+    },
+
+    claimDaily: () => {
+      const today = todayStr()
+      const s = get()
+      if (s.dailyClaimedDay === today) return 0
+      set({ dailyClaimedDay: today })
+      const amount = 30 + Math.max(0, s.streak - 1) * 15
+      get().award(amount, { reason: `day ${Math.max(1, s.streak)} 🔥`, sound: 'levelup', confetti: true })
+      persist()
+      return amount
+    },
+
+    recordSpin: () => {
+      set((s) => ({ spins: s.spins + 1 }))
+      persist()
+    },
+
     pushFx: (fx) => set((s) => ({ fx: [...s.fx, { ...fx, id: fxId++ }] })),
     popFx: (id) => set((s) => ({ fx: s.fx.filter((f) => f.id !== id) })),
 
     resetProfile: () => {
-      set({ coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [], rewarded: {} })
+      set({
+        coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [], rewarded: {},
+        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0
+      })
       persist()
     }
   }

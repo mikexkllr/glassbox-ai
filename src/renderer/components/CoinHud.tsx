@@ -28,6 +28,7 @@ export default function CoinHud() {
   const coins = useGame((s) => s.coins)
   const xp = useGame((s) => s.xp)
   const combo = useGame((s) => s.combo)
+  const streak = useGame((s) => s.streak)
   const lastEarnAt = useGame((s) => s.lastEarnAt)
   const sfxOn = useGame((s) => s.sfxOn)
   const toggleSfx = useGame((s) => s.toggleSfx)
@@ -57,6 +58,13 @@ export default function CoinHud() {
         <span className="text-[15px]">🪙</span>
         <span className="font-mono text-[14px] font-bold tabular-nums text-glass-warm">{shown}</span>
       </motion.div>
+
+      {/* daily streak */}
+      {streak > 0 && (
+        <div className="flex items-center gap-1 rounded-full border border-glass-warm/30 bg-glass-warm/5 px-2 py-1 text-[12px] font-bold text-glass-warm" title={`${streak}-day streak`}>
+          🔥 {streak}
+        </div>
+      )}
 
       {/* live combo + draining timer */}
       {combo >= 2 && <ComboMeter combo={combo} lastEarnAt={lastEarnAt} />}
