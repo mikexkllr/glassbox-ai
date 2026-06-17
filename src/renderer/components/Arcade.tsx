@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useGame, ACHIEVEMENTS, rankTitle, todayStr } from '../game/store'
 import SlotMachine from './SlotMachine'
+import GamesHub from './Games'
 import { cn } from '../lib/files'
 
-type Tab = 'daily' | 'quests' | 'slots' | 'stats'
+type Tab = 'daily' | 'quests' | 'games' | 'slots' | 'stats'
 
 export default function Arcade({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('daily')
@@ -22,7 +23,7 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex gap-1 border-b border-ink-800 px-3 py-2">
-          {(['daily', 'quests', 'slots', 'stats'] as Tab[]).map((t) => (
+          {(['daily', 'quests', 'games', 'slots', 'stats'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -31,7 +32,7 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
                 tab === t ? 'bg-glass-accent/20 text-glass-accent' : 'text-gray-400 hover:text-white'
               )}
             >
-              {t === 'daily' ? '🔥 Daily' : t === 'quests' ? '🎯 Quests' : t === 'slots' ? '🎰 Slots' : '📊 Stats'}
+              {t === 'daily' ? '🔥 Daily' : t === 'quests' ? '🎯 Quests' : t === 'games' ? '🎮 Games' : t === 'slots' ? '🎰 Slots' : '📊 Stats'}
             </button>
           ))}
         </div>
@@ -39,6 +40,7 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
         <div className="max-h-[60vh] overflow-y-auto p-5">
           {tab === 'daily' && <Daily />}
           {tab === 'quests' && <Quests />}
+          {tab === 'games' && <GamesHub />}
           {tab === 'slots' && <SlotMachine />}
           {tab === 'stats' && <Stats />}
         </div>
