@@ -91,7 +91,9 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
                     {depth === 'gist' ? section.plainSummaryGist : section.plainSummaryDeep}
                   </p>
 
-                  {section.insights?.length > 0 && <Insights insights={section.insights} sectionId={plan.id} />}
+                  {section.insights?.length > 0 && (
+                    <Insights insights={section.insights} explanations={section.inlineExplanations} sectionId={plan.id} />
+                  )}
 
                   {section.selfCheck && <SelfCheck check={section.selfCheck} sectionId={plan.id} />}
 
