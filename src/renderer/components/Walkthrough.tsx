@@ -10,6 +10,7 @@ import CoinHud from './CoinHud'
 import ReviewCheckout from './ReviewCheckout'
 import Arcade from './Arcade'
 import Presentation from './Presentation'
+import GuidedTour from './GuidedTour'
 import { cn } from '../lib/files'
 
 export default function Walkthrough() {
@@ -58,17 +59,23 @@ export default function Walkthrough() {
           <CoinHud />
           <div className="mx-1 h-5 w-px bg-ink-700" />
           <div className="no-drag flex items-center gap-1 rounded-full border border-ink-700 bg-ink-850 p-0.5">
-            {(['presentation', 'scroll'] as const).map((m) => (
+            {(['guided', 'presentation', 'scroll'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                title={m === 'presentation' ? 'One section at a time' : 'All sections, scroll'}
+                title={
+                  m === 'guided'
+                    ? 'Brilliant-style: one idea at a time, interact to advance'
+                    : m === 'presentation'
+                      ? 'One section at a time'
+                      : 'All sections, scroll'
+                }
                 className={cn(
                   'rounded-full px-2.5 py-1 text-[12px] transition-colors',
                   viewMode === m ? 'bg-glass-accent text-ink-950' : 'text-gray-300 hover:text-white'
                 )}
               >
-                {m === 'presentation' ? '▭ Present' : '☰ Scroll'}
+                {m === 'guided' ? '🎓 Guided' : m === 'presentation' ? '▭ Present' : '☰ Scroll'}
               </button>
             ))}
           </div>
@@ -102,7 +109,9 @@ export default function Walkthrough() {
       <div className="flex min-h-0 flex-1">
         <UnderstandingMap />
 
-        {viewMode === 'presentation' ? (
+        {viewMode === 'guided' ? (
+          <GuidedTour onCashout={() => setCheckout(true)} />
+        ) : viewMode === 'presentation' ? (
           <Presentation />
         ) : (
           <main className="min-w-0 flex-1 overflow-y-auto">

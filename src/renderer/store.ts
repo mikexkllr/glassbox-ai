@@ -17,7 +17,7 @@ export interface SelfCheckResult {
 }
 
 export type Depth = 'gist' | 'deep'
-export type ViewMode = 'presentation' | 'scroll'
+export type ViewMode = 'guided' | 'presentation' | 'scroll'
 
 export interface LiveScope {
   status: string
@@ -135,7 +135,7 @@ export const useStore = create<State>((set, get) => ({
   walked: [],
 
   depth: 'deep',
-  viewMode: 'presentation',
+  viewMode: 'guided',
   slideIndex: 0,
   activeTrace: null,
   selfCheckRevealed: [],
