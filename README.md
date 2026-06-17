@@ -4,6 +4,13 @@
 
 ### don't read the diff like a caveman 🗿 — turn the PR into a game and actually *get it* 🧠✨
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-7c9cff.svg)](LICENSE)
+![Electron](https://img.shields.io/badge/Electron-33-5ee0c0?logo=electron&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
+![LangChain](https://img.shields.io/badge/LangChain-deepagents-ffb86b)
+![PRs welcome](https://img.shields.io/badge/PRs-welcome-2ea043.svg)
+
 **code review but it's a dopamine slot machine.** an AI agent reads the whole change, then walks you through it like a Brilliant lesson — quizzes, coins, combos, loot vaults, the works. you don't *review* the diff. you *speedrun understanding it.*
 
 `🪙 coins` · `🔥 combos` · `🎰 vaults` · `🧠 quizzes` · `🏅 levels` · `💯 no cap`
