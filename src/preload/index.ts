@@ -11,6 +11,7 @@ import type {
 } from '@shared/types'
 
 const api: GlassboxApi = {
+  platform: process.platform,
   pickRepo: () => ipcRenderer.invoke('repo:pick'),
   listBranches: (repoPath) => ipcRenderer.invoke('repo:branches', repoPath),
   computeDiff: (repoPath, base, feature) => ipcRenderer.invoke('repo:diff', repoPath, base, feature),

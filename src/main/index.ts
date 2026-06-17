@@ -18,7 +18,13 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#0a0c10',
     icon: appIcon(),
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // macOS keeps its inset traffic lights. Windows/Linux use a hidden title bar
+    // with the native Window Controls Overlay, so the dark app extends to the top
+    // edge instead of sitting under a clashing OS title bar (the "strange border").
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform === 'darwin'
+      ? {}
+      : { titleBarOverlay: { color: '#0a0c10', symbolColor: '#9aa4b2', height: 48 } }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,

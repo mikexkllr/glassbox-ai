@@ -29,6 +29,7 @@ export default function Walkthrough() {
 
   const [checkout, setCheckout] = useState(false)
   const [arcade, setArcade] = useState(false)
+  const isMac = window.glassbox.platform === 'darwin'
 
   const total = overview?.sections.length ?? 0
   const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
@@ -44,8 +45,13 @@ export default function Walkthrough() {
   return (
     <div className="flex h-full flex-col">
       {/* top bar */}
-      <header className="drag flex h-12 flex-none items-center gap-3 border-b border-ink-800 px-4">
-        <div className="w-16" /> {/* space for macOS traffic lights */}
+      <header
+        className="drag flex h-12 flex-none items-center gap-3 border-b border-ink-800 px-4"
+        // On Windows/Linux reserve room on the right for the native window controls
+        // (overlay); resolves to a no-op 16px on macOS, which has no overlay env var.
+        style={{ paddingRight: 'calc(16px + 100% - env(titlebar-area-width, 100%))' }}
+      >
+        {isMac && <div className="w-16" />} {/* space for macOS traffic lights */}
         <button onClick={back} className="no-drag text-[13px] text-ink-600 hover:text-white">
           ← repos
         </button>

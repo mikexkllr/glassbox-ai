@@ -12,11 +12,17 @@ export default function SettingsModal() {
   const [testing, setTesting] = useState(false)
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
 
   useEffect(() => setDraft(stored), [stored])
   if (!draft) return null
 
   const set = (patch: Partial<Settings>) => setDraft({ ...draft, ...patch })
+
+  // Dismissing with unsaved edits (e.g. a freshly typed API key) should ask
+  // before throwing the changes away, rather than silently discarding them.
+  const dirty = JSON.stringify(draft) !== JSON.stringify(stored)
+  const requestClose = () => (dirty ? setConfirmClose(true) : close())
   const models = PROVIDER_MODELS[draft.provider]
 
   const onProvider = (provider: Provider) => set({ provider, model: PROVIDER_MODELS[provider][0] })
@@ -29,14 +35,15 @@ export default function SettingsModal() {
   }
 
   return (
-    <div data-overlay className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-6" onClick={close}>
+    <>
+    <div data-overlay className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-6" onClick={requestClose}>
       <div
         className="max-h-full w-[560px] overflow-y-auto rounded-2xl border border-ink-700 bg-ink-900 p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[17px] font-semibold text-white">Settings</h2>
-          <button onClick={close} className="no-drag text-ink-600 hover:text-white">
+          <button onClick={requestClose} className="no-drag text-ink-600 hover:text-white">
             ✕
           </button>
         </div>
@@ -274,6 +281,52 @@ export default function SettingsModal() {
         </div>
       </div>
     </div>
+
+    {confirmClose && (
+      <div
+        data-overlay
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-6"
+        onClick={() => setConfirmClose(false)}
+      >
+        <div
+          className="w-[340px] rounded-2xl border border-ink-700 bg-ink-900 p-5 text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-[15px] font-semibold text-white">Save your changes?</div>
+          <p className="mt-1 text-[12.5px] text-ink-600">
+            You edited the settings (including any credentials) but haven't saved yet.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                setConfirmClose(false)
+                close()
+              }}
+              className="no-drag flex-1 rounded-lg border border-ink-700 px-4 py-2 text-[13px] text-gray-300 hover:border-ink-600"
+            >
+              Discard
+            </button>
+            <button
+              onClick={async () => {
+                await save(draft)
+                setConfirmClose(false)
+                close()
+              }}
+              className="no-drag flex-1 rounded-lg bg-glass-accent px-4 py-2 text-[13px] font-medium text-ink-950 hover:brightness-110"
+            >
+              Save
+            </button>
+          </div>
+          <button
+            onClick={() => setConfirmClose(false)}
+            className="no-drag mt-3 text-[11.5px] text-ink-600 hover:text-white"
+          >
+            keep editing
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

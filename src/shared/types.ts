@@ -317,6 +317,8 @@ export interface PersistedSession {
 // ---------------------------------------------------------------------------
 
 export interface GlassboxApi {
+  /** The host OS, e.g. 'darwin' | 'win32' | 'linux'. */
+  platform: string
   pickRepo: () => Promise<string | null>
   listBranches: (repoPath: string) => Promise<{ branches: string[]; current: string; defaultBase: string }>
   computeDiff: (repoPath: string, base: string, feature: string) => Promise<DiffSummary>
