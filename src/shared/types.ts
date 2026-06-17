@@ -52,13 +52,14 @@ export interface DiffSummary {
 // Settings
 // ---------------------------------------------------------------------------
 
-export type Provider = 'anthropic' | 'opencodezen' | 'ollama' | 'bedrock' | 'vertex'
+export type Provider = 'anthropic' | 'opencodezen' | 'ollama' | 'bedrock' | 'bedrock-proxy' | 'vertex'
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic: 'Anthropic',
   opencodezen: 'OpenCode Zen',
   ollama: 'Ollama',
   bedrock: 'Bedrock',
+  'bedrock-proxy': 'Bedrock (proxy)',
   vertex: 'Vertex'
 }
 
@@ -83,6 +84,10 @@ export interface Settings {
   bedrockRegion?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
+  // Bedrock Converse via a custom endpoint + API key (e.g. a company proxy that
+  // speaks the Bedrock Converse API but authenticates with a bearer token).
+  bedrockProxyEndpoint?: string
+  bedrockProxyApiKey?: string
   // Vertex
   vertexProject?: string
   vertexLocation?: string
@@ -125,6 +130,12 @@ export const PROVIDER_MODELS: Record<Provider, string[]> = {
   ],
   ollama: ['llama3.1', 'qwen2.5-coder', 'deepseek-coder-v2', 'codellama'],
   bedrock: ['anthropic.claude-3-5-sonnet-20241022-v2:0', 'anthropic.claude-3-5-haiku-20241022-v1:0'],
+  'bedrock-proxy': [
+    'anthropic.claude-sonnet-4-5-20250929-v1:0',
+    'anthropic.claude-opus-4-1-20250805-v1:0',
+    'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    'anthropic.claude-3-5-haiku-20241022-v1:0'
+  ],
   vertex: ['claude-opus-4-8', 'gemini-2.0-flash', 'gemini-1.5-pro']
 }
 

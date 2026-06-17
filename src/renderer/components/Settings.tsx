@@ -43,7 +43,7 @@ export default function SettingsModal() {
 
         <Field label="Provider">
           <div className="grid grid-cols-3 gap-2">
-            {(['anthropic', 'opencodezen', 'ollama', 'bedrock', 'vertex'] as Provider[]).map((p) => (
+            {(['anthropic', 'opencodezen', 'ollama', 'bedrock', 'bedrock-proxy', 'vertex'] as Provider[]).map((p) => (
               <button
                 key={p}
                 onClick={() => onProvider(p)}
@@ -175,6 +175,41 @@ export default function SettingsModal() {
               </Field>
             </div>
           </>
+        )}
+
+        {draft.provider === 'bedrock-proxy' && (
+          <div className="mb-4 rounded-xl border border-ink-700 bg-ink-850/40 p-3">
+            <div className="mb-2 text-[12px] font-semibold text-glass-accent">Bedrock Converse via proxy</div>
+            <p className="mb-3 text-[11px] text-ink-600">
+              For a gateway in front of AWS Bedrock that speaks the Converse API but authenticates with a bearer token (no
+              SigV4). Use the Claude model id as the model above.
+            </p>
+            <Field label="Converse endpoint URL" hint="Your proxy's base URL, e.g. https://bedrock.mycorp.com">
+              <input
+                value={draft.bedrockProxyEndpoint ?? ''}
+                onChange={(e) => set({ bedrockProxyEndpoint: e.target.value })}
+                placeholder="https://…"
+                className="input"
+              />
+            </Field>
+            <Field label="API key" hint="Sent as Authorization: Bearer …. Or set AWS_BEARER_TOKEN_BEDROCK.">
+              <input
+                type="password"
+                value={draft.bedrockProxyApiKey ?? ''}
+                onChange={(e) => set({ bedrockProxyApiKey: e.target.value })}
+                placeholder="paste your key…"
+                className="input"
+              />
+            </Field>
+            <Field label="Region" hint="Used by the SDK to build requests; any valid region works behind a proxy.">
+              <input
+                value={draft.bedrockRegion ?? ''}
+                onChange={(e) => set({ bedrockRegion: e.target.value })}
+                placeholder="us-east-1"
+                className="input"
+              />
+            </Field>
+          </div>
         )}
 
         {draft.provider === 'vertex' && (

@@ -59,6 +59,25 @@ export async function makeModel(settings: Settings): Promise<BaseChatModel> {
           : {})
       })
     }
+    case 'bedrock-proxy': {
+      // Bedrock Converse API behind a custom endpoint (e.g. a company proxy)
+      // authenticated with a bearer API key instead of AWS SigV4 credentials.
+      const { ChatBedrockConverse } = await import('@langchain/aws')
+      const { BedrockRuntimeClient } = await import('@aws-sdk/client-bedrock-runtime')
+      const apiKey = settings.bedrockProxyApiKey || process.env.AWS_BEARER_TOKEN_BEDROCK
+      if (!settings.bedrockProxyEndpoint) throw new Error('No Bedrock proxy endpoint. Add the Converse API URL in Settings.')
+      if (!apiKey) throw new Error('No Bedrock proxy API key. Add one in Settings or set AWS_BEARER_TOKEN_BEDROCK.')
+      const region = settings.bedrockRegion || 'us-east-1'
+      // Force the bearer-token auth scheme so the SDK skips SigV4 signing (which
+      // would otherwise overwrite our Authorization header with a signature).
+      const client = new BedrockRuntimeClient({
+        region,
+        endpoint: settings.bedrockProxyEndpoint,
+        token: { token: apiKey },
+        authSchemePreference: ['httpBearerAuth']
+      })
+      return new ChatBedrockConverse({ model: settings.model, region, client, temperature: 0, maxTokens: 8000 })
+    }
     case 'vertex': {
       const { ChatVertexAI } = await import('@langchain/google-vertexai')
       return new ChatVertexAI({
