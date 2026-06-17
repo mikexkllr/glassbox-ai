@@ -113,3 +113,50 @@ body {
   100% { background: transparent; box-shadow: none; }
 }
 .line-flash { animation: line-flash 1.3s ease-out; }
+
+/* ───────────────────────── brainrot landing fx ───────────────────────── */
+
+/* drifting aurora blobs behind the hero */
+@keyframes gb-aurora {
+  0%   { transform: translate(0, 0) scale(1);      opacity: 0.55; }
+  33%  { transform: translate(6%, -4%) scale(1.15); opacity: 0.8; }
+  66%  { transform: translate(-5%, 5%) scale(0.95); opacity: 0.5; }
+  100% { transform: translate(0, 0) scale(1);      opacity: 0.55; }
+}
+.gb-aurora { animation: gb-aurora 14s ease-in-out infinite; will-change: transform, opacity; filter: blur(60px); }
+
+/* floating emoji / coins that rise and fade */
+@keyframes gb-float {
+  0%   { transform: translateY(20px) rotate(-8deg); opacity: 0; }
+  12%  { opacity: 0.9; }
+  85%  { opacity: 0.7; }
+  100% { transform: translateY(-120px) rotate(10deg); opacity: 0; }
+}
+.gb-float { animation: gb-float linear infinite; will-change: transform, opacity; }
+
+/* hue-cycling brainrot gradient text */
+@keyframes gb-hue { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+.gb-hue { animation: gb-hue 8s linear infinite; }
+
+/* shimmer sweep across the CTA */
+@keyframes gb-shimmer { 0% { transform: translateX(-130%); } 100% { transform: translateX(230%); } }
+.gb-shimmer { animation: gb-shimmer 2.4s ease-in-out infinite; }
+
+/* pulsing glow ring around the logo */
+@keyframes gb-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+.gb-glow { animation: gb-glow 2.8s ease-in-out infinite; will-change: transform, opacity; }
+
+/* slow rotation for the prism */
+@keyframes gb-spin { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
+.gb-spin { animation: gb-spin 18s linear infinite; }
+
+/* scrolling brainrot ticker */
+@keyframes gb-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.gb-marquee { animation: gb-marquee 18s linear infinite; }
+
+/* idle bob for the CTA */
+@keyframes gb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.gb-bob { animation: gb-bob 2.6s ease-in-out infinite; }

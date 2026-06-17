@@ -1,87 +1,122 @@
-# 🔍 Glassbox
+<div align="center">
 
-**Don't read the diff. Let a guide who's already read the whole change walk you through it — until it just clicks.**
+# 🔮 GLASSBOX
 
-When an AI vibe-codes a PR, a human still has to *understand* it — and a raw git diff is a miserable way to do that. Glassbox flips the experience: a [LangChain **deepagents**](https://github.com/langchain-ai/deepagentsjs) agent that has already read and understood the whole change becomes a patient, interactive tour guide.
+### don't read the diff like a caveman 🗿 — turn the PR into a game and actually *get it* 🧠✨
 
-It is **not** a reviewer, linter, or quality scorer. Its one job is to make *the human* understand the code with as little effort as possible.
+**code review but it's a dopamine slot machine.** an AI agent reads the whole change, then walks you through it like a Brilliant lesson — quizzes, coins, combos, loot vaults, the works. you don't *review* the diff. you *speedrun understanding it.*
 
-## What it does
+`🪙 coins` · `🔥 combos` · `🎰 vaults` · `🧠 quizzes` · `🏅 levels` · `💯 no cap`
 
-- **Big picture first** — plain-language *what* and *why* before any code.
-- **Pokeable code** — hover any symbol for a live, contextual explanation (what it is, where it came from, what it holds here). Click to pin.
-- **Story per chunk** — what it does / how it fits / what calls it.
-- **Visual value tracing** — watch a value flow through the change step-by-step, with concrete example values, the matching code line glowing as you step.
-- **Explain-depth dial** — one-line gist ⇄ deep dive, with "go deeper ⤓" for an on-demand, freshly-investigated answer.
-- **"Wait, why this?"** — ask inline about any chunk; grounded in the real repo.
-- **Optional self-check** — a skippable "guess what this does first?" beat for active recall (never scored).
-- **Understanding map** — a gentle coverage map of where you've been vs. what's left.
-- **Investigation trail** — see exactly what Glassbox read to explain each part ("read `auth.ts`, `users.ts`, and the tests").
-- **Ask anything** — a chat panel powered by the same agent, grounded in the repo.
+</div>
 
-## Architecture
+---
 
-Single Electron + TypeScript codebase, three layers:
+## the vibe 😤
 
-| Layer | Path | Responsibility |
-|------|------|----------------|
-| **Main** (Node) | `src/main/` | git diff ingestion, the deepagent, LLM providers, secrets, IPC |
-| **Preload** | `src/preload/` | typed `window.glassbox` bridge (context-isolated) |
-| **Renderer** (React) | `src/renderer/` | the entire interactive walkthrough UI |
+AI vibe-codes a PR in 4 seconds. you still have to *understand* it. and a raw git diff? unreadable. boring. zero dopamine. you scroll, your eyes glaze, you smash "Approve," you pray. 🙏
 
-- **Agent** — `deepagents` (`createDeepAgent`) on LangGraph. The agent investigates the *real* checked-out repo with custom, sandboxed `repo_*` tools (`read_file`, `grep`, `glob`, `ls`, `diff`), bounded by a per-section file budget. It returns each section by **calling** `submit_walkthrough_section`, whose arguments are a **Zod** schema — all structure comes from the tool-calling API, never model-emitted JSON text. Work is **lazy**: a section is generated only when you open it.
-- **Diff** — `simple-git` computes `base...feature`; `parse-diff` turns it into a structured model.
-- **Code rendering** — `shiki` tokenizes; inline explanations are mapped onto tokens to make them pokeable.
+**Glassbox said nah.** 🛑
 
-## Requirements
+it spins up a [LangChain **deepagents**](https://github.com/langchain-ai/deepagentsjs) agent that actually *reads the whole change* — every file, every call site — then becomes your hype tour guide. big picture first, then pokeable code, hover-for-lore, value-tracing animations, and a full **gamified** loop that makes your brain go brrr while you learn.
 
-- Node 18+ (developed on Node 26)
-- A local **git** repo with two branches to compare
-- An LLM provider (see below)
+it is **NOT** a reviewer. **NOT** a linter. **NOT** a vibe-killing quality scorer. its only job: get the change into your head with maximum dopamine and minimum effort. 🧠⚡️
 
-## Run
+## why it goes hard 🚀
+
+- 🗺️ **big picture first** — plain-language *what* + *why* before a single line of code
+- 👆 **pokeable code** — hover any symbol for instant lore (what it is, where it came from, what it holds *right here*). tap to pin.
+- 🎬 **value tracing** — watch a value *flow* through the change, line glowing as you step. cinematic.
+- 🎚️ **depth dial** — one-line gist ⇄ deep dive, with "go deeper ⤓" for a fresh on-demand investigation
+- ❓ **"wait, why this?"** — ask inline about any chunk, grounded in the real repo
+- 🧠 **quizzes + self-check** — active recall, Brilliant-style, so it actually sticks
+- 🔍 **investigation trail** — see exactly what the agent read to explain each part
+
+## the dopamine layer 🎰
+
+this is the part your brain is addicted to:
+
+| 🎮 | what |
+|----|------|
+| 🪙 **coins + XP + levels** | earn for every insight, quiz, and trace. rank up: Intern → … → **Legend** |
+| 🔥 **combos + crits** | chain actions fast for multipliers, random ×2/×3 crits, screen-shake, hype banners |
+| 🎰 **hidden vaults** | coins locked behind "Decode" mini-games — prove you *get* the code to crack 'em |
+| 🕹️ **the Arcade** | daily streak 🔥, quests 🎯, slot machine 🎰, mini-games 🎮, personal-best stats 📊 |
+| 🎮 **learning games** | Order the Flow · Match Up · Fill the Blank — built from the actual PR |
+| 🧰 **loot chests** | master a section, pop a chest, win a random jackpot |
+| 💸 **buy the verdict** | you can't just approve. you **cash out** coins to unlock the final Approve / Request-changes — earned, not free |
+
+> tl;dr: it's a casino, but the house always wins by making you *understand the code.* 💯
+
+## run it 🏃
 
 ```bash
 npm install
-npm run dev      # launches the Electron app
+npm run dev      # 🚀 launches the Electron app
 ```
 
-Then: **pick a repo → choose base + feature branches → Start walkthrough.**
-
-Other scripts:
+then: **drop a repo 📁 → pick the matchup ⚔️ (base 🆚 feature) → let's gooo 🚀**
 
 ```bash
 npm run build       # production build (out/)
 npm run typecheck   # tsc for main + renderer
 ```
 
-## LLM providers
+**requirements:** Node 18+ (built on Node 26) · a local **git** repo with two branches · an LLM provider (below).
 
-Configure in **Settings** (⚙) inside the app. All four are selectable:
+## pick your fighter 🥊 (LLM providers)
 
-| Provider | Needs |
+set it in **Settings** (⚙) inside the app:
+
+| provider | needs |
 |----------|-------|
-| **Anthropic** (default, `claude-opus-4-8`) | `ANTHROPIC_API_KEY` env var, or paste a key in Settings |
-| **Ollama** (local, no key) | Ollama running at `http://localhost:11434` + a code model pulled |
-| **Amazon Bedrock** | AWS region + credentials (or default credential chain) |
-| **Google Vertex AI** | GCP project + location + ADC |
+| 🟣 **OpenCode Zen** *(the default sauce)* | key from [opencode.ai/auth](https://opencode.ai/auth) — OpenAI-compatible gateway |
+| 🟠 **Anthropic** | `ANTHROPIC_API_KEY` env var, or paste a key in Settings (`claude-opus-4-8`) |
+| 🟢 **Ollama** *(local, no key, zero cost)* | Ollama running at `localhost:11434` + a code model pulled |
+| 🟡 **Amazon Bedrock** | AWS region + creds (or default chain) |
+| 🔵 **Google Vertex AI** | GCP project + location + ADC |
 
-API keys live only in the main process and are never exposed to the renderer.
+🔒 keys live only in the main process. the renderer never sees them. we're not weird about your secrets.
 
-> **Quickest start with no key:** install [Ollama](https://ollama.com), `ollama pull qwen2.5-coder`, then pick **Ollama** in Settings.
+> **broke but based?** install [Ollama](https://ollama.com), `ollama pull qwen2.5-coder`, pick **Ollama**, run infinite reviews for free. plus there's a **prefetch** toggle that cooks the next section in the background while you play — perfect for local. 🧑‍🍳
 
-## Try it with the demo repo
+## under the hood 🔧
 
-A scratch repo is handy for a first run. Any repo with two branches works; for example:
+single **Electron + TypeScript** codebase. no Python sidecar. three layers:
+
+| layer | path | job |
+|-------|------|-----|
+| 🧠 **Main** (Node) | `src/main/` | git ingestion, the deepagent, LLM providers, secrets, IPC |
+| 🌉 **Preload** | `src/preload/` | typed `window.glassbox` bridge (context-isolated) |
+| 🎨 **Renderer** (React) | `src/renderer/` | the entire interactive walkthrough + game UI |
+
+- 🤖 **agent** — `deepagents` (`createDeepAgent`) on LangGraph, reading the *real* checked-out repo with sandboxed `repo_*` tools (`read_file`, `grep`, `glob`, `ls`, `diff`), bounded by a per-section file budget. every section comes back by **calling** `submit_walkthrough_section` — a **Zod** schema. all structure from tool-calling, *never* model-emitted JSON text. work is **lazy**: a section generates only when you open it.
+- 🌿 **diff** — `simple-git` computes `base...feature`; `parse-diff` structures it.
+- ✨ **code** — `shiki` tokenizes (JS regex engine — renderer CSP blocks WASM); inline explanations get mapped onto tokens to make them pokeable.
+- 🎮 **game state** — `zustand` + localStorage; SFX via the Web Audio API (no asset files, CSP-safe).
+
+## try it instantly 🧪
+
+any repo with two branches works. spin a scratch one:
 
 ```bash
 mkdir /tmp/demo && cd /tmp/demo && git init
-# ... commit a base on main, then make changes on a feature branch ...
+# commit a base on main, branch off, make some changes...
 ```
 
-Pick `/tmp/demo`, compare `main → your-feature`, and start the walkthrough.
+pick `/tmp/demo`, compare `main 🆚 your-feature`, and **let's gooo.** 🚀
 
-## Notes / roadmap
+## roadmap 🛣️
 
-- **Input:** local git repos. GitHub/GitLab PR-URL ingestion is deferred; the ingestion layer is isolated in `src/main/git/` to make it easy to add.
-- Generated walkthroughs and your coverage are cached per `(repo, base, feature)` in the app's user-data dir, so reopening is instant.
+- 📥 **input:** local git repos for now. GitHub/GitLab PR-URL ingestion is deferred — the ingestion layer is isolated in `src/main/git/` so it's easy to bolt on.
+- 💾 walkthroughs + your coverage are cached per `(repo, base, feature)`, so reopening is instant.
+
+<div align="center">
+
+---
+
+**built different. review different.** 🔮
+
+*stop approving code you don't understand. start maxxing.* 🧠📈
+
+</div>
