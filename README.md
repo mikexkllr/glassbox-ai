@@ -55,11 +55,32 @@ this is the part your brain is addicted to:
 
 > tl;dr: it's a casino, but the house always wins by making you *understand the code.* 💯
 
+## 📦 install
+
+grab a prebuilt installer from the [**Releases**](https://github.com/mikexkllr/glassbox-ai/releases) page:
+
+| platform | file |
+|----------|------|
+| 🍎 **macOS** | `Glassbox-*-mac-*.dmg` (Apple Silicon + Intel) |
+| 🪟 **Windows** | `Glassbox-*-win-x64.exe` (NSIS installer) |
+| 🐧 **Linux** | `Glassbox-*-linux-x86_64.AppImage` |
+
+every push to `main` ships a fresh build via GitHub Actions, and the app **auto-updates itself** in the background (Windows + Linux). on macOS, auto-update is off until the build is code-signed — pull the latest `.dmg` to update.
+
+> first launch is unsigned, so the OS will warn you: **macOS** → right-click the app → *Open*; **Windows** → *More info* → *Run anyway*.
+
 ## run it 🏃
 
 ```bash
 npm install
 npm run dev      # 🚀 launches the Electron app
+```
+
+build installers yourself:
+
+```bash
+npm run pack   # unpacked app in dist/ (fast, for testing)
+npm run dist   # full installers for the current platform
 ```
 
 then: **drop a repo 📁 → pick the matchup ⚔️ (base 🆚 feature) → let's gooo 🚀**

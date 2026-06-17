@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { registerIpc } from './ipc.js'
+import { setupAutoUpdater } from './updater.js'
 
 function appIcon(): string | undefined {
   const p = join(app.getAppPath(), 'build', 'icon.png')
@@ -42,6 +43,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerIpc()
   createWindow()
+  setupAutoUpdater()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

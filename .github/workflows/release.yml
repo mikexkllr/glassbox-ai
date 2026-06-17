@@ -1,0 +1,84 @@
+name: Release
+
+# Builds installers for macOS, Windows and Linux on every push to main and
+# publishes them to a GitHub Release. The shipped app (electron-updater) reads
+# that release feed and auto-updates itself in the background.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+
+# electron-builder needs to create releases / upload assets.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS
+          - os: windows-latest
+            name: Windows
+          - os: ubuntu-latest
+            name: Linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Derive a monotonically increasing version from the workflow run number,
+      # keeping major.minor from package.json (e.g. 0.1.<run_number>). Every
+      # push to main therefore ships a strictly newer version so clients update.
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          VERSION="${BASE}.${{ github.run_number }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          node -e "const f='package.json',p=require('./'+f);p.version='$VERSION';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          echo "Building version $VERSION"
+
+      - name: Build renderer + main
+        run: npm run build
+
+      # --publish always uploads installers + the latest*.yml update feeds to a
+      # DRAFT GitHub Release tagged v<version>. The finalize job publishes it
+      # once all three platforms have uploaded their artifacts.
+      - name: Package & publish (${{ matrix.name }})
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          VERSION="${BASE}.${{ github.run_number }}"
+          gh release edit "v${VERSION}" --draft=false --latest --repo "${{ github.repository }}"
+          echo "Published release v${VERSION}"
