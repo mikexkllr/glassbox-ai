@@ -93,6 +93,17 @@ export async function computeDiff(
     mergeBase = null
   }
 
+  // Pin the exact endpoint commits so the cache key reflects the real content,
+  // not just the (movable) branch names.
+  const resolveRef = async (ref: string): Promise<string> => {
+    try {
+      return (await g.revparse([ref])).trim()
+    } catch {
+      return ''
+    }
+  }
+  const [baseSha, featureSha] = await Promise.all([resolveRef(base), resolveRef(feature)])
+
   // base...feature => changes on feature since it diverged from base.
   const range = mergeBase ? `${base}...${feature}` : `${base}..${feature}`
   const raw = await g.raw(['diff', '--no-color', '-M', range])
@@ -118,6 +129,8 @@ export async function computeDiff(
     repoPath,
     base,
     feature,
+    baseSha,
+    featureSha,
     mergeBase,
     files,
     totalAdditions: files.reduce((s, f) => s + f.additions, 0),

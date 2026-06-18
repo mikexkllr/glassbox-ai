@@ -102,10 +102,17 @@ interface State {
   handleAgentEvent: (e: AgentEvent) => void
 }
 
+function sessionKeyOf(diff: DiffSummary): string {
+  // Bind the cached walkthrough to the exact endpoint commits, not just the
+  // (movable) branch names — so moving or switching a branch yields a fresh
+  // walkthrough instead of re-serving a stale or cross-loaded one.
+  return `${diff.repoPath}::${diff.base}::${diff.feature}::${diff.baseSha}::${diff.featureSha}`
+}
+
 function persist(get: () => State) {
   const s = get()
   if (!s.diff) return
-  const key = `${s.repoPath}::${s.base}::${s.feature}`
+  const key = sessionKeyOf(s.diff)
   window.glassbox.saveSession({
     key,
     repoPath: s.repoPath!,
@@ -200,8 +207,8 @@ export const useStore = create<State>((set, get) => ({
         set({ busyDiff: false, error: `No changes between ${base} and ${feature}.` })
         return
       }
-      // Try restoring a saved session.
-      const key = `${repoPath}::${base}::${feature}`
+      // Try restoring a saved session (keyed by the exact commits in this diff).
+      const key = sessionKeyOf(diff)
       const saved = await window.glassbox.loadSession(key)
       set({
         diff,

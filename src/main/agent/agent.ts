@@ -76,7 +76,7 @@ export async function generateOverview(
 
   const model = await makeModel(settings)
   emit({ kind: 'status', scope, message: 'Checking out the feature branch in an isolated worktree…' })
-  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: OverviewPayload | null = null
@@ -120,7 +120,7 @@ export async function generateSection(
   emit({ kind: 'status', scope, message: `Investigating "${plan.title}"…` })
 
   const model = await makeModel(settings)
-  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: SectionPayload | null = null
@@ -195,7 +195,7 @@ export async function scoreAnswer(
   const scope = 'score'
   const settings = await getSettings()
   const model = await makeModel(settings)
-  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: Math.min(4, settings.maxFilesPerSection), emit })
 
   let captured: ScorePayload | null = null
@@ -238,7 +238,7 @@ export async function generateReview(
   const settings = await getSettings()
   emit({ kind: 'status', scope, message: 'Drafting your review…' })
   const model = await makeModel(settings)
-  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: ReviewPayload | null = null
@@ -280,7 +280,7 @@ async function answer(
 ): Promise<{ answer: string; trail: TrailEntry[] }> {
   const settings = await getSettings()
   const model = await makeModel(settings)
-  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
   const agent = await makeAgent(model, tools)
 

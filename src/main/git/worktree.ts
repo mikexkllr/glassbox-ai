@@ -35,14 +35,19 @@ function keyFor(repoPath: string, sha: string): string {
  * working tree if a worktree can't be created (bare repo, disk, perms…), so the
  * agent keeps working rather than hard-failing.
  */
-export async function ensureWorktree(repoPath: string, feature: string): Promise<string> {
+export async function ensureWorktree(repoPath: string, feature: string, pinnedSha?: string): Promise<string> {
   const g = simpleGit({ baseDir: repoPath })
 
-  let sha: string
-  try {
-    sha = (await g.revparse([feature])).trim()
-  } catch {
-    return repoPath // can't resolve the ref — read the working tree as a fallback
+  // Prefer the SHA the diff was computed against (so the worktree, the diff, and
+  // the cache key all reference the exact same commit); fall back to resolving
+  // the ref ourselves.
+  let sha = (pinnedSha ?? '').trim()
+  if (!sha) {
+    try {
+      sha = (await g.revparse([feature])).trim()
+    } catch {
+      return repoPath // can't resolve the ref — read the working tree as a fallback
+    }
   }
   if (!sha) return repoPath
 

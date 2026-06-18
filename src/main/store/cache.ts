@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as crypto from 'node:crypto'
 import type { PersistedSession } from '@shared/types'
 
 function sessionsDir(): string {
@@ -8,11 +9,10 @@ function sessionsDir(): string {
 }
 
 function safeName(key: string): string {
-  return key.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 200)
-}
-
-export function sessionKey(repoPath: string, base: string, feature: string): string {
-  return `${repoPath}::${base}::${feature}`
+  // Hash the full key so long repo paths or branch names can never be truncated
+  // or sanitized into the same filename — which would serve the wrong cached
+  // walkthrough for a different repo/branch.
+  return crypto.createHash('sha1').update(key).digest('hex')
 }
 
 export async function loadSession(key: string): Promise<PersistedSession | null> {

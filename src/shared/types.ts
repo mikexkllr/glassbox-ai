@@ -42,6 +42,11 @@ export interface DiffSummary {
   repoPath: string
   base: string
   feature: string
+  // Resolved commit SHAs of the two endpoints, captured when the diff was
+  // computed. Used to key the walkthrough cache so a moved/different branch
+  // regenerates instead of serving a stale or cross-loaded walkthrough.
+  baseSha: string
+  featureSha: string
   mergeBase: string | null
   files: DiffFile[]
   totalAdditions: number
