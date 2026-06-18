@@ -82,6 +82,8 @@ interface State {
   setFeature: (f: string) => void
   startWalkthrough: () => Promise<void>
   backToOnboarding: () => void
+  regenerate: () => Promise<void>
+  resetAll: () => void
 
   ensureOverview: () => Promise<void>
   ensureSection: (plan: SectionPlan) => Promise<void>
@@ -240,6 +242,24 @@ export const useStore = create<State>((set, get) => ({
 
   backToOnboarding() {
     set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
+  },
+
+  // Discard the cached AI walkthrough for the current branches and re-run it.
+  async regenerate() {
+    if (!get().diff) return
+    set({ overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
+    persist(get) // overwrite the cached session so a reopen also regenerates
+    await get().ensureOverview()
+  },
+
+  // Full clean slate: wipe the cached walkthrough for these branches, then
+  // return to onboarding. (The game profile is reset separately by the caller.)
+  resetAll() {
+    if (get().diff) {
+      set({ overview: null, sections: {}, walked: [] })
+      persist(get)
+    }
+    get().backToOnboarding()
   },
 
   async ensureSection(plan) {

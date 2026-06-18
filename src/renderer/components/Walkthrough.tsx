@@ -23,6 +23,8 @@ export default function Walkthrough() {
   const diff = useStore((s) => s.diff)
   const walked = useStore((s) => s.walked)
   const back = useStore((s) => s.backToOnboarding)
+  const regenerate = useStore((s) => s.regenerate)
+  const resetAll = useStore((s) => s.resetAll)
   const openSettings = useStore((s) => s.openSettings)
   const chatOpen = useStore((s) => s.chatOpen)
   const setChatOpen = useStore((s) => s.setChatOpen)
@@ -31,6 +33,7 @@ export default function Walkthrough() {
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
+  const resetProfile = useGame((s) => s.resetProfile)
 
   const [checkout, setCheckout] = useState(false)
   const [arcade, setArcade] = useState(false)
@@ -38,6 +41,7 @@ export default function Walkthrough() {
   const [flow, setFlow] = useState(false)
   const [boss, setBoss] = useState(false)
   const [wrapped, setWrapped] = useState(false)
+  const [confirm, setConfirm] = useState<null | 'regenerate' | 'reset'>(null)
   const isMac = window.glassbox.platform === 'darwin'
 
   // Cashing out now leads through the "PR Wrapped" recap, which then mints the verdict.
@@ -66,6 +70,20 @@ export default function Walkthrough() {
         {isMac && <div className="w-16" />} {/* space for macOS traffic lights */}
         <button onClick={back} className="no-drag text-[13px] text-ink-600 hover:text-white">
           ← repos
+        </button>
+        <button
+          onClick={() => setConfirm('regenerate')}
+          title="Regenerate this walkthrough with AI"
+          className="no-drag rounded-lg border border-ink-700 px-2 py-1 text-[12.5px] text-gray-300 hover:border-ink-600"
+        >
+          🔄
+        </button>
+        <button
+          onClick={() => setConfirm('reset')}
+          title="Reset — wipe your progress and this walkthrough"
+          className="no-drag rounded-lg border border-ink-700 px-2 py-1 text-[12.5px] text-gray-300 hover:border-glass-del/60"
+        >
+          🧹
         </button>
         <div className="text-[13px] font-medium text-white">Glassbox</div>
         {diff && (
@@ -181,6 +199,22 @@ export default function Walkthrough() {
           onClose={() => setWrapped(false)}
         />
       )}
+      {confirm && (
+        <ConfirmDialog
+          kind={confirm}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            const k = confirm
+            setConfirm(null)
+            if (k === 'regenerate') {
+              void regenerate()
+            } else {
+              resetProfile()
+              resetAll()
+            }
+          }}
+        />
+      )}
       <Mascot />
     </div>
   )
@@ -198,6 +232,44 @@ function CashoutCta({ allDone, done, total, onClick }: { allDone: boolean; done:
       <p className="mt-2 text-[12px] text-ink-600">
         Spend the coins you earned to mint your Approve / Request-changes review.
       </p>
+    </div>
+  )
+}
+
+function ConfirmDialog({
+  kind,
+  onCancel,
+  onConfirm
+}: {
+  kind: 'regenerate' | 'reset'
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const isReset = kind === 'reset'
+  return (
+    <div data-overlay className="fixed inset-0 z-[170] flex items-center justify-center bg-black/70 p-6" onClick={onCancel}>
+      <div className="w-[420px] max-w-full rounded-2xl border border-ink-700 bg-ink-900 p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[16px] font-bold text-white">{isReset ? '🧹 Reset everything?' : '🔄 Regenerate walkthrough?'}</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-gray-300">
+          {isReset
+            ? 'This wipes your game progress — coins, XP, level, streak, achievements, cosmetics, reviews — AND the cached walkthrough, then sends you back to the start. This cannot be undone.'
+            : 'This discards the current AI overview and sections and re-runs the agent on these branches. Your coins and progress stay.'}
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onCancel} className="no-drag rounded-lg border border-ink-700 px-4 py-2 text-[13px] text-gray-300 hover:border-ink-600">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={cn(
+              'no-drag rounded-lg px-4 py-2 text-[13px] font-bold',
+              isReset ? 'bg-glass-del text-white hover:brightness-110' : 'bg-glass-accent text-ink-950 hover:brightness-110'
+            )}
+          >
+            {isReset ? 'Reset everything' : 'Regenerate'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
