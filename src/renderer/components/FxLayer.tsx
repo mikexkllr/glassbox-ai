@@ -1,13 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGame, type Fx } from '../game/store'
-
-const CONFETTI_COLORS = ['#7c9cff', '#5ee0c0', '#ffb86b', '#f85149', '#ffd23f', '#b07cff']
+import { confettiColors, coinGlyph } from '../game/cosmetics'
 
 /** Full-screen, click-through layer that renders all the juice. */
 export default function FxLayer() {
   const fx = useGame((s) => s.fx)
   const pop = useGame((s) => s.popFx)
+  // Select stable ids and derive the palette/glyph — never return fresh arrays
+  // from a selector (it breaks useSyncExternalStore's snapshot caching).
+  const confettiId = useGame((s) => s.equipped.confetti)
+  const coinId = useGame((s) => s.equipped.coin)
+  const colors = useMemo(() => confettiColors(confettiId), [confettiId])
+  const glyph = coinGlyph(coinId)
   const seen = useRef(new Set<number>())
 
   // Screen shake on big wins.
@@ -26,20 +31,63 @@ export default function FxLayer() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[200] overflow-hidden">
+      <ComboHeat />
       <AnimatePresence>
         {fx.map((f) => (
-          <FxItem key={f.id} fx={f} done={() => pop(f.id)} />
+          <FxItem key={f.id} fx={f} glyph={glyph} colors={colors} done={() => pop(f.id)} />
         ))}
       </AnimatePresence>
     </div>
   )
 }
 
-function FxItem({ fx, done }: { fx: Fx; done: () => void }) {
+/** Escalating "screen heat" — a warm vignette + faint scanlines that intensify
+ * with the current combo and melt away when it breaks. */
+function ComboHeat() {
+  const combo = useGame((s) => s.combo)
+  if (combo < 2) return null
+  const intensity = Math.min(1, (combo - 1) / 9)
+  const color = combo >= 8 ? '#ff5db1' : combo >= 6 ? '#f85149' : combo >= 4 ? '#ff8a3d' : '#ffb86b'
+  return (
+    <>
+      <motion.div
+        className="absolute inset-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: intensity }}
+        transition={{ duration: 0.35 }}
+        style={{ boxShadow: `inset 0 0 ${Math.round(180 * intensity)}px ${Math.round(60 * intensity)}px ${color}` }}
+      />
+      <motion.div
+        className="absolute inset-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: intensity * 0.1 }}
+        transition={{ duration: 0.35 }}
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(0deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)'
+        }}
+      />
+    </>
+  )
+}
+
+/** Center of the HUD coin counter, so coin bursts can fly into it. */
+function coinTarget(): { x: number; y: number } | null {
+  const el = document.getElementById('coin-hud')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+}
+
+function FxItem({ fx, glyph, colors, done }: { fx: Fx; glyph: string; colors: string[]; done: () => void }) {
   if (fx.kind === 'coin') {
     const x = fx.x ?? window.innerWidth - 150
     const y = fx.y ?? 70
     const isCrit = !!fx.crit
+    // Pop at the origin, then magnetize into the HUD coin counter.
+    const target = fx.tone === 'bad' ? null : coinTarget()
+    const dx = target ? target.x - x : 0
+    const dy = target ? target.y - y : -80
     return (
       <motion.div
         className="absolute select-none whitespace-nowrap font-extrabold"
@@ -50,13 +98,18 @@ function FxItem({ fx, done }: { fx: Fx; done: () => void }) {
           color: fx.tone === 'bad' ? '#f85149' : isCrit ? '#ff5db1' : '#ffd23f',
           textShadow: isCrit ? '0 0 14px rgba(255,93,177,0.9)' : '0 2px 8px rgba(0,0,0,0.6)'
         }}
-        initial={{ opacity: 0, scale: 0.4, y: 0 }}
-        animate={{ opacity: 1, scale: isCrit ? 1.4 : 1.15, y: -80 }}
+        initial={{ opacity: 0, scale: 0.4, x: 0, y: 0 }}
+        animate={{
+          opacity: [0, 1, 1, 0],
+          scale: [0.4, isCrit ? 1.5 : 1.15, 0.85, 0.5],
+          x: [0, 0, dx * 0.45, dx],
+          y: [0, -12, dy * 0.5, dy]
+        }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 1.1, ease: 'easeOut' }}
+        transition={{ duration: isCrit ? 1.25 : 1, ease: 'easeInOut', times: [0, 0.22, 0.55, 1] }}
         onAnimationComplete={done}
       >
-        +{fx.amount} 🪙{isCrit && <span className="ml-1">×{fx.crit}!</span>}{' '}
+        +{fx.amount} {glyph}{isCrit && <span className="ml-1">×{fx.crit}!</span>}{' '}
         {fx.text && <span className="text-[12px] font-semibold text-white/80">{fx.text}</span>}
       </motion.div>
     )
@@ -162,10 +215,10 @@ function FxItem({ fx, done }: { fx: Fx; done: () => void }) {
   }
 
   // confetti / jackpot
-  return <Confetti count={fx.kind === 'jackpot' ? 80 : 46} done={done} />
+  return <Confetti count={fx.kind === 'jackpot' ? 80 : 46} colors={colors} done={done} />
 }
 
-function Confetti({ count, done }: { count: number; done: () => void }) {
+function Confetti({ count, colors, done }: { count: number; colors: string[]; done: () => void }) {
   useEffect(() => {
     const t = setTimeout(done, 2600)
     return () => clearTimeout(t)
@@ -177,7 +230,7 @@ function Confetti({ count, done }: { count: number; done: () => void }) {
         const left = Math.random() * 100
         const delay = Math.random() * 0.2
         const dur = 1.6 + Math.random() * 1.1
-        const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length]
+        const color = colors[i % colors.length]
         const size = 6 + Math.random() * 8
         const drift = (Math.random() - 0.5) * 240
         return (

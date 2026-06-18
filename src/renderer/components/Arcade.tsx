@@ -3,9 +3,12 @@ import { motion } from 'framer-motion'
 import { useGame, ACHIEVEMENTS, rankTitle, todayStr } from '../game/store'
 import SlotMachine from './SlotMachine'
 import GamesHub from './Games'
+import Shop from './Shop'
+import Review from './Review'
+import SkillTree from './SkillTree'
 import { cn } from '../lib/files'
 
-type Tab = 'daily' | 'quests' | 'games' | 'slots' | 'stats'
+type Tab = 'daily' | 'quests' | 'games' | 'review' | 'shop' | 'slots' | 'skills' | 'stats'
 
 export default function Arcade({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('daily')
@@ -22,8 +25,8 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="no-drag text-ink-600 hover:text-white">✕</button>
         </div>
 
-        <div className="flex gap-1 border-b border-ink-800 px-3 py-2">
-          {(['daily', 'quests', 'games', 'slots', 'stats'] as Tab[]).map((t) => (
+        <div className="flex flex-wrap gap-1 border-b border-ink-800 px-3 py-2">
+          {(['daily', 'quests', 'games', 'review', 'shop', 'slots', 'skills', 'stats'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -32,7 +35,7 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
                 tab === t ? 'bg-glass-accent/20 text-glass-accent' : 'text-gray-400 hover:text-white'
               )}
             >
-              {t === 'daily' ? '🔥 Daily' : t === 'quests' ? '🎯 Quests' : t === 'games' ? '🎮 Games' : t === 'slots' ? '🎰 Slots' : '📊 Stats'}
+              {t === 'daily' ? '🔥 Daily' : t === 'quests' ? '🎯 Quests' : t === 'games' ? '🎮 Games' : t === 'review' ? '🔁 Review' : t === 'shop' ? '🛍️ Shop' : t === 'slots' ? '🎰 Slots' : t === 'skills' ? '🌳 Skills' : '📊 Stats'}
             </button>
           ))}
         </div>
@@ -41,7 +44,10 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
           {tab === 'daily' && <Daily />}
           {tab === 'quests' && <Quests />}
           {tab === 'games' && <GamesHub />}
+          {tab === 'review' && <Review />}
+          {tab === 'shop' && <Shop />}
           {tab === 'slots' && <SlotMachine />}
+          {tab === 'skills' && <SkillTree />}
           {tab === 'stats' && <Stats />}
         </div>
       </motion.div>
@@ -103,7 +109,8 @@ const QUESTS: Quest[] = [
   { id: 'sections3', label: 'Explore 3 sections', emoji: '📂', goal: 3, reward: 30, progress: (g) => g.countPrefix('section:open:') },
   { id: 'chest1', label: 'Open a mastery chest', emoji: '🧰', goal: 1, reward: 60, progress: (g) => g.countPrefix('chest:') },
   { id: 'combo5', label: 'Hit a 5× combo', emoji: '🔥', goal: 5, reward: 50, progress: (g) => g.bestCombo },
-  { id: 'spin5', label: 'Spin the slots 5×', emoji: '🎰', goal: 5, reward: 40, progress: (g) => g.spins }
+  { id: 'spin5', label: 'Spin the slots 5×', emoji: '🎰', goal: 5, reward: 40, progress: (g) => g.spins },
+  { id: 'review5', label: 'Review 5 cards', emoji: '🔁', goal: 5, reward: 45, progress: (g) => Object.keys(g.srs).length }
 ]
 
 function Quests() {
@@ -148,9 +155,12 @@ function Quests() {
   )
 }
 
+const SPEEDRUN_LABELS: Record<string, string> = { bughunt: '🐛 Bug Hunt', predict: '🔮 Predict the Diff' }
+
 function Stats() {
   const g = useGame()
   const level = Math.floor(g.xp / 400) + 1
+  const times = Object.entries(g.bestTimes).sort((a, b) => a[0].localeCompare(b[0]))
   const rows: [string, string | number][] = [
     ['Level', `${level} · ${rankTitle(level)}`],
     ['Lifetime coins', g.lifetimeCoins],
@@ -160,7 +170,8 @@ function Stats() {
     ['Insights revealed', g.countPrefix('insight:')],
     ['Quizzes aced', g.countPrefix('quizsolved:')],
     ['Chests opened', g.countPrefix('chest:')],
-    ['Slot spins', g.spins]
+    ['Slot spins', g.spins],
+    ['Cosmetics owned', g.owned.length]
   ]
   return (
     <div>
@@ -172,6 +183,19 @@ function Stats() {
           </div>
         ))}
       </div>
+      {times.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-2 text-[11px] uppercase tracking-wide text-ink-600">Speedrun bests 🏁</div>
+          <div className="grid grid-cols-2 gap-2">
+            {times.map(([k, ms]) => (
+              <div key={k} className="flex items-center justify-between rounded-lg border border-ink-700 bg-ink-850/50 px-3 py-2">
+                <span className="text-[12px] text-gray-300">{SPEEDRUN_LABELS[k] ?? k}</span>
+                <span className="font-mono text-[13px] font-bold text-glass-accent2">{(ms / 1000).toFixed(1)}s</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-4">
         <div className="mb-2 text-[11px] uppercase tracking-wide text-ink-600">Achievements</div>
         <div className="flex flex-wrap gap-2">

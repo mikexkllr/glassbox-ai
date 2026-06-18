@@ -8,6 +8,21 @@ export function setMuted(m: boolean) {
   muted = m
 }
 
+// Sound packs (a cosmetic) globally retune every blip: force a waveform, shift
+// pitch, and scale gain. `arcade` is the untouched default.
+type PackCfg = { wave?: OscillatorType; pitch: number; gain: number }
+const PACKS: Record<string, PackCfg> = {
+  arcade: { pitch: 1, gain: 1 },
+  chiptune: { wave: 'square', pitch: 1.05, gain: 1 },
+  mellow: { wave: 'sine', pitch: 0.94, gain: 0.82 },
+  retro: { wave: 'triangle', pitch: 0.98, gain: 1.08 }
+}
+let pack: PackCfg = PACKS.arcade
+
+export function setPack(id: string) {
+  pack = PACKS[id] ?? PACKS.arcade
+}
+
 function ac(): AudioContext | null {
   if (muted) return null
   if (!ctx) {
@@ -34,11 +49,12 @@ function blip(
   const t0 = a.currentTime + delay
   const osc = a.createOscillator()
   const g = a.createGain()
-  osc.type = type
-  osc.frequency.setValueAtTime(freq, t0)
-  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur)
+  osc.type = pack.wave ?? type
+  const f = freq * pack.pitch
+  osc.frequency.setValueAtTime(f, t0)
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo * pack.pitch, t0 + dur)
   g.gain.setValueAtTime(0.0001, t0)
-  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012)
+  g.gain.exponentialRampToValueAtTime(gain * pack.gain, t0 + 0.012)
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
   osc.connect(g).connect(a.destination)
   osc.start(t0)

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { play, playCombo, setMuted } from './sfx'
+import { play, playCombo, setMuted, setPack } from './sfx'
+import { DEFAULT_EQUIPPED, cosmeticById, type CosmeticSlot } from './cosmetics'
 
 export const COMBO_WINDOW_MS = 7000
 export const XP_PER_LEVEL = 400
@@ -60,7 +61,9 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   full_clear: { id: 'full_clear', label: 'Full Clear', emoji: '🏆' },
   high_roller: { id: 'high_roller', label: 'High Roller', emoji: '🎰' },
   code_breaker: { id: 'code_breaker', label: 'Code Breaker', emoji: '🕵️' },
-  flawless: { id: 'flawless', label: 'Flawless Decode', emoji: '🎯' }
+  flawless: { id: 'flawless', label: 'Flawless Decode', emoji: '🎯' },
+  stylish: { id: 'stylish', label: 'Big Drip', emoji: '🛍️' },
+  boss_slain: { id: 'boss_slain', label: 'Boss Slain', emoji: '⚔️' }
 }
 
 interface AwardOpts {
@@ -83,6 +86,16 @@ interface GameState {
   rewarded: Record<string, true>
   fx: Fx[]
 
+  // cosmetics (the shop)
+  owned: string[]
+  equipped: Record<CosmeticSlot, string>
+
+  // spaced repetition (the review deck): card key -> schedule
+  srs: Record<string, { due: number; ease: number; reps: number }>
+
+  // speedrun personal bests: key -> fastest time in ms (lower is better)
+  bestTimes: Record<string, number>
+
   // streak
   streak: number
   bestStreak: number
@@ -97,6 +110,12 @@ interface GameState {
   award: (base: number, opts?: AwardOpts) => number
   rewardOnce: (key: string, base: number, opts?: AwardOpts) => number
   spend: (amount: number) => boolean
+  ownsCosmetic: (id: string) => boolean
+  buyCosmetic: (id: string) => boolean
+  equipCosmetic: (slot: CosmeticSlot, id: string) => void
+  reviewCard: (key: string, correct: boolean) => void
+  dueCount: (keys: string[]) => number
+  recordTime: (key: string, ms: number) => boolean
   breakCombo: () => void
   toggleSfx: () => void
   unlock: (id: string) => void
@@ -158,12 +177,17 @@ export const useGame = create<GameState>((set, get) => {
         bestStreak: s.bestStreak,
         lastActiveDay: s.lastActiveDay,
         dailyClaimedDay: s.dailyClaimedDay,
-        spins: s.spins
+        spins: s.spins,
+        owned: s.owned,
+        equipped: s.equipped,
+        srs: s.srs,
+        bestTimes: s.bestTimes
       })
     )
   }
 
   setMuted(!(saved.sfxOn ?? true))
+  setPack(saved.equipped?.sound ?? DEFAULT_EQUIPPED.sound)
 
   return {
     coins: saved.coins ?? 0,
@@ -176,6 +200,11 @@ export const useGame = create<GameState>((set, get) => {
     achievements: saved.achievements ?? [],
     rewarded: saved.rewarded ?? {},
     fx: [],
+
+    owned: saved.owned ?? [],
+    equipped: { ...DEFAULT_EQUIPPED, ...(saved.equipped ?? {}) },
+    srs: saved.srs ?? {},
+    bestTimes: saved.bestTimes ?? {},
 
     streak: saved.streak ?? 0,
     bestStreak: saved.bestStreak ?? 0,
@@ -270,6 +299,70 @@ export const useGame = create<GameState>((set, get) => {
       return true
     },
 
+    ownsCosmetic: (id) => {
+      const c = cosmeticById(id)
+      if (!c) return false
+      return c.price === 0 || get().owned.includes(id)
+    },
+
+    buyCosmetic: (id) => {
+      const c = cosmeticById(id)
+      if (!c) return false
+      // Already owned (or a free default): just equip it.
+      if (c.price === 0 || get().owned.includes(id)) {
+        get().equipCosmetic(c.slot, id)
+        return true
+      }
+      if (!get().spend(c.price)) return false // spend() handles the "need more" toast
+      set((s) => ({ owned: [...s.owned, id] }))
+      get().equipCosmetic(c.slot, id)
+      get().unlock('stylish')
+      get().pushFx({ kind: 'toast', text: `Unlocked ${c.name} 🛍️`, tone: 'good' })
+      persist()
+      return true
+    },
+
+    equipCosmetic: (slot, id) => {
+      set((s) => ({ equipped: { ...s.equipped, [slot]: id } }))
+      if (slot === 'sound') setPack(id)
+      if (get().sfxOn) play('tick')
+      persist()
+    },
+
+    // SM-2-lite: correct pushes the next review out (1d, 3d, 7d, then ×ease);
+    // a miss resets the card to ~10 minutes so it comes back this session.
+    reviewCard: (key, correct) => {
+      const now = Date.now()
+      const cur = get().srs[key] ?? { due: now, ease: 2.3, reps: 0 }
+      let next: { due: number; ease: number; reps: number }
+      if (correct) {
+        const reps = cur.reps + 1
+        const ease = Math.min(2.8, cur.ease + 0.1)
+        const days = reps === 1 ? 1 : reps === 2 ? 3 : reps === 3 ? 7 : Math.round(7 * Math.pow(ease, reps - 3))
+        next = { due: now + days * 86_400_000, ease, reps }
+      } else {
+        next = { due: now + 10 * 60_000, ease: Math.max(1.3, cur.ease - 0.2), reps: 0 }
+      }
+      set((s) => ({ srs: { ...s.srs, [key]: next } }))
+      persist()
+    },
+
+    // A card with no schedule yet counts as due (never reviewed).
+    dueCount: (keys) => {
+      const now = Date.now()
+      const srs = get().srs
+      return keys.filter((k) => !srs[k] || srs[k].due <= now).length
+    },
+
+    // Record a speedrun time; keeps only the fastest. Returns true on a new best.
+    recordTime: (key, ms) => {
+      const cur = get().bestTimes[key]
+      if (cur !== undefined && cur <= ms) return false
+      set((s) => ({ bestTimes: { ...s.bestTimes, [key]: ms } }))
+      persist()
+      return true
+    },
+
     breakCombo: () => {
       if (get().combo > 0) set({ combo: 0, lastEarnAt: 0 })
     },
@@ -333,8 +426,10 @@ export const useGame = create<GameState>((set, get) => {
     resetProfile: () => {
       set({
         coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [], rewarded: {},
-        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0
+        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0,
+        owned: [], equipped: { ...DEFAULT_EQUIPPED }, srs: {}, bestTimes: {}
       })
+      setPack(DEFAULT_EQUIPPED.sound)
       persist()
     }
   }

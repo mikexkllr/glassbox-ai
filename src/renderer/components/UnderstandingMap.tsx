@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store'
 import { useGame } from '../game/store'
 import { cn } from '../lib/files'
-import type { WalkChunk } from '@shared/types'
+import type { WalkChunk, WalkthroughSection } from '@shared/types'
 
 const KIND_SYM: Record<string, string> = {
   function: 'ƒ',
@@ -115,13 +115,16 @@ export default function UnderstandingMap() {
                   isCurrent && 'bg-glass-accent/10'
                 )}
               >
-                <span
-                  className={cn(
-                    'mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px]',
-                    isWalked ? 'bg-glass-accent2/20 text-glass-accent2' : section ? 'bg-glass-accent/15 text-glass-accent' : 'bg-ink-800 text-ink-600'
-                  )}
-                >
-                  {isWalked ? '✓' : isBusy ? '·' : i + 1}
+                <span className="relative mt-0.5 flex h-7 w-7 flex-none items-center justify-center">
+                  {section && <MasteryRing pct={masteryOf(section, p.id, rewarded)} />}
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                      isWalked ? 'bg-glass-accent2/20 text-glass-accent2' : section ? 'bg-glass-accent/15 text-glass-accent' : 'bg-ink-800 text-ink-600'
+                    )}
+                  >
+                    {isWalked ? '✓' : isBusy ? '·' : i + 1}
+                  </span>
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className={cn('truncate text-[12.5px]', isWalked ? 'text-gray-300' : 'text-gray-200')}>{p.title}</div>
@@ -194,5 +197,50 @@ export default function UnderstandingMap() {
         {plans.length === 0 && <div className="px-2 py-4 text-[12px] text-ink-600">mapping the change…</div>}
       </nav>
     </aside>
+  )
+}
+
+/** How much of a loaded section the reader has actually cracked: dug-into chunks,
+ * revealed insights, and aced quizzes, as a 0–1 fraction. */
+function masteryOf(section: WalkthroughSection, id: string, rewarded: Record<string, true>): number {
+  let done = 0
+  let total = 0
+  for (const c of section.chunks) {
+    total++
+    if (rewarded[`story:${c.file}:${c.id}`]) done++
+  }
+  section.insights?.forEach((_, i) => {
+    total++
+    if (rewarded[`insight:${id}:${i}`]) done++
+  })
+  for (const q of section.quiz ?? []) {
+    total++
+    if (rewarded[`quizsolved:${id}:${q.id}`]) done++
+  }
+  return total ? done / total : 0
+}
+
+/** A thin radial progress ring drawn around a section node. */
+function MasteryRing({ pct }: { pct: number }) {
+  const r = 12
+  const circ = 2 * Math.PI * r
+  return (
+    <svg className="pointer-events-none absolute inset-0" width="28" height="28" viewBox="0 0 28 28">
+      <circle cx="14" cy="14" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="2" />
+      {pct > 0 && (
+        <circle
+          cx="14"
+          cy="14"
+          r={r}
+          fill="none"
+          stroke="#5ee0c0"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - Math.min(1, pct))}
+          transform="rotate(-90 14 14)"
+        />
+      )}
+    </svg>
   )
 }

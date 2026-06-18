@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useGame, XP_PER_LEVEL, COMBO_WINDOW_MS, rankTitle } from '../game/store'
+import { coinGlyph } from '../game/cosmetics'
 
 function useTween(value: number) {
   const [display, setDisplay] = useState(value)
@@ -32,6 +33,8 @@ export default function CoinHud() {
   const lastEarnAt = useGame((s) => s.lastEarnAt)
   const sfxOn = useGame((s) => s.sfxOn)
   const toggleSfx = useGame((s) => s.toggleSfx)
+  const coinId = useGame((s) => s.equipped.coin)
+  const glyph = coinGlyph(coinId)
   const level = Math.floor(xp / XP_PER_LEVEL) + 1
   const pct = Math.round(((xp % XP_PER_LEVEL) / XP_PER_LEVEL) * 100)
   const shown = useTween(coins)
@@ -49,13 +52,14 @@ export default function CoinHud() {
 
       {/* coins */}
       <motion.div
+        id="coin-hud"
         key={coins}
         initial={{ scale: 1 }}
         animate={{ scale: [1, 1.18, 1] }}
         transition={{ duration: 0.3 }}
         className="flex items-center gap-1.5 rounded-full border border-glass-warm/40 bg-glass-warm/10 px-3 py-1"
       >
-        <span className="text-[15px]">🪙</span>
+        <span className="text-[15px]">{glyph}</span>
         <span className="font-mono text-[14px] font-bold tabular-nums text-glass-warm">{shown}</span>
       </motion.div>
 

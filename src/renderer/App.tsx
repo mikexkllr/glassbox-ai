@@ -5,6 +5,7 @@ import Onboarding from './components/Onboarding'
 import Walkthrough from './components/Walkthrough'
 import SettingsModal from './components/Settings'
 import FxLayer from './components/FxLayer'
+import CursorTrail from './components/CursorTrail'
 
 export default function App() {
   const screen = useStore((s) => s.screen)
@@ -24,6 +25,7 @@ export default function App() {
       {screen === 'onboarding' ? <Onboarding /> : <Walkthrough />}
       {settingsOpen && <SettingsModal />}
       <FxLayer />
+      <CursorTrail />
     </div>
   )
 }

@@ -11,6 +11,11 @@ import ReviewCheckout from './ReviewCheckout'
 import Arcade from './Arcade'
 import Presentation from './Presentation'
 import GuidedTour from './GuidedTour'
+import BlastRadius from './BlastRadius'
+import BossFight from './BossFight'
+import PRWrapped from './PRWrapped'
+import Mascot from './Mascot'
+import DataFlow from './DataFlow'
 import { cn } from '../lib/files'
 
 export default function Walkthrough() {
@@ -29,7 +34,14 @@ export default function Walkthrough() {
 
   const [checkout, setCheckout] = useState(false)
   const [arcade, setArcade] = useState(false)
+  const [map, setMap] = useState(false)
+  const [flow, setFlow] = useState(false)
+  const [boss, setBoss] = useState(false)
+  const [wrapped, setWrapped] = useState(false)
   const isMac = window.glassbox.platform === 'darwin'
+
+  // Cashing out now leads through the "PR Wrapped" recap, which then mints the verdict.
+  const openCashout = () => setWrapped(true)
 
   const total = overview?.sections.length ?? 0
   const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
@@ -87,10 +99,32 @@ export default function Walkthrough() {
           </div>
           <DepthDial />
           <button
+            onClick={() => setMap(true)}
+            title="Blast radius — fog-of-war map of the diff"
+            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
+          >
+            🗺️
+          </button>
+          <button
+            onClick={() => setFlow(true)}
+            title="Data flow — watch values move through the change"
+            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
+          >
+            🌊
+          </button>
+          <button
             onClick={() => setArcade(true)}
+            title="Arcade — games, shop, slots, quests"
             className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
           >
             🕹️
+          </button>
+          <button
+            onClick={() => setBoss(true)}
+            title="Boss Fight — the recall gauntlet capstone"
+            className="no-drag rounded-lg border border-glass-del/40 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-glass-del/70"
+          >
+            ⚔️
           </button>
           <button
             onClick={() => setChatOpen(!chatOpen)}
@@ -101,7 +135,7 @@ export default function Walkthrough() {
             💬 Ask
           </button>
           <button
-            onClick={() => setCheckout(true)}
+            onClick={openCashout}
             className="no-drag rounded-lg border border-glass-warm/40 bg-glass-warm/10 px-3 py-1.5 text-[12.5px] font-semibold text-glass-warm hover:bg-glass-warm/20"
           >
             🎰 Cash out
@@ -116,7 +150,7 @@ export default function Walkthrough() {
         <UnderstandingMap />
 
         {viewMode === 'guided' ? (
-          <GuidedTour onCashout={() => setCheckout(true)} />
+          <GuidedTour onCashout={openCashout} />
         ) : viewMode === 'presentation' ? (
           <Presentation />
         ) : (
@@ -127,7 +161,7 @@ export default function Walkthrough() {
                 <SectionCard key={plan.id} plan={plan} index={i} />
               ))}
               {overview && (
-                <CashoutCta allDone={allDone} done={done} total={total} onClick={() => setCheckout(true)} />
+                <CashoutCta allDone={allDone} done={done} total={total} onClick={openCashout} />
               )}
             </div>
           </main>
@@ -138,6 +172,16 @@ export default function Walkthrough() {
 
       {checkout && <ReviewCheckout onClose={() => setCheckout(false)} />}
       {arcade && <Arcade onClose={() => setArcade(false)} />}
+      {map && <BlastRadius onClose={() => setMap(false)} />}
+      {flow && <DataFlow onClose={() => setFlow(false)} />}
+      {boss && <BossFight onClose={() => setBoss(false)} onCashout={() => { setBoss(false); openCashout() }} />}
+      {wrapped && (
+        <PRWrapped
+          onProceed={() => { setWrapped(false); setCheckout(true) }}
+          onClose={() => setWrapped(false)}
+        />
+      )}
+      <Mascot />
     </div>
   )
 }

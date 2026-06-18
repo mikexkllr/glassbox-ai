@@ -31,6 +31,7 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
   const repoPath = useStore((s) => s.repoPath)
 
   const rewardOnce = useGame((s) => s.rewardOnce)
+  const theme = useGame((s) => s.equipped.theme)
 
   const [lines, setLines] = useState<Line[] | null>(null)
   const [pop, setPop] = useState<PopState | null>(null)
@@ -45,7 +46,7 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
         const sliceLines = all.slice(startLine - 1, endLine)
         const slice = sliceLines.join('\n')
         try {
-          const toks = await tokenize(slice, langOf(file))
+          const toks = await tokenize(slice, langOf(file), theme)
           if (alive) setLines(toks)
         } catch {
           // Fallback: render the code unhighlighted rather than spinning forever.
@@ -58,7 +59,7 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
     return () => {
       alive = false
     }
-  }, [repoPath, ref, file, startLine, endLine])
+  }, [repoPath, ref, file, startLine, endLine, theme])
 
   // line number -> symbols expected on that line
   const bySymbol = useMemo(() => {
