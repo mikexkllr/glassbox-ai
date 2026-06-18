@@ -7,7 +7,7 @@ import type { AgentEvent, DiffSummary, TrailEntry } from '@shared/types'
 import { fileDiffText } from '../git/diff.js'
 
 const IGNORE_DIRS = new Set(['.git', 'node_modules', 'dist', 'out', 'build', '.next', '.venv', '__pycache__'])
-const MAX_FILE_BYTES = 200_000
+const MAX_FILE_BYTES = 1_000_000
 const MAX_GREP_HITS = 60
 const MAX_GLOB_HITS = 100
 
@@ -16,6 +16,10 @@ export interface InvestigationContext {
   scope: string
   maxFiles: number
   emit: (e: AgentEvent) => void
+  // Root the file tools read from. This is normally an isolated worktree pinned
+  // to the feature commit (see git/worktree.ts) so the agent reads the real
+  // reviewed code, not whatever the user has checked out. Falls back to repoPath.
+  repoRoot?: string
 }
 
 export interface Investigation {
@@ -74,7 +78,7 @@ async function* walk(dir: string, root: string): AsyncGenerator<string> {
  * to the renderer so the reader sees what Glassbox is reading, live.
  */
 export function buildInvestigation(ctx: InvestigationContext): Investigation {
-  const repoRoot = ctx.diff.repoPath
+  const repoRoot = ctx.repoRoot ?? ctx.diff.repoPath
   const trail: TrailEntry[] = []
   const filesRead = new Set<string>()
 
@@ -93,7 +97,9 @@ export function buildInvestigation(ctx: InvestigationContext): Investigation {
       let content: string
       try {
         const stat = await fsp.stat(abs)
-        if (stat.size > MAX_FILE_BYTES) return `File too large to read fully (${stat.size} bytes).`
+        if (stat.size > MAX_FILE_BYTES && !startLine && !endLine) {
+          return `File is large (${stat.size} bytes). Read a window instead: pass startLine/endLine to repo_read_file.`
+        }
         content = await fsp.readFile(abs, 'utf8')
       } catch (e) {
         return `Could not read "${rel}": ${(e as Error).message}`
@@ -205,7 +211,9 @@ export function buildInvestigation(ctx: InvestigationContext): Investigation {
   const diffTool = tool(
     async ({ file }) => {
       record({ tool: 'diff', target: file })
-      return fileDiffText(ctx.diff, file)
+      // Generous cap: this is the agent's escape hatch for the full hunks of a
+      // file whose diff was truncated in the prompt, so allow much more here.
+      return fileDiffText(ctx.diff, file, 60_000)
     },
     {
       name: 'repo_diff',

@@ -135,36 +135,12 @@ export async function showFile(repoPath: string, ref: string, file: string): Pro
   }
 }
 
-/** A compact textual rendering of the diff for the agent prompt. */
-export function diffToText(diff: DiffSummary, maxFiles = 60): string {
-  const out: string[] = []
-  out.push(`Repository diff: ${diff.base}...${diff.feature}`)
-  out.push(`${diff.files.length} files changed, +${diff.totalAdditions} -${diff.totalDeletions}`)
-  out.push('')
-  for (const f of diff.files.slice(0, maxFiles)) {
-    out.push(`### ${f.kind.toUpperCase()} ${f.path}${f.oldPath ? ` (from ${f.oldPath})` : ''} (+${f.additions} -${f.deletions})`)
-    if (f.binary) {
-      out.push('(binary file)')
-      continue
-    }
-    for (const h of f.hunks) {
-      out.push(h.header)
-      for (const l of h.lines) {
-        const sign = l.type === 'add' ? '+' : l.type === 'del' ? '-' : ' '
-        const ln = l.newLine ?? l.oldLine ?? ''
-        out.push(`${sign}${String(ln).padStart(5)}| ${l.content}`)
-      }
-    }
-    out.push('')
-  }
-  return out.join('\n')
+function fileHeader(f: DiffFile): string {
+  return `### ${f.kind.toUpperCase()} ${f.path}${f.oldPath ? ` (from ${f.oldPath})` : ''} (+${f.additions} -${f.deletions})`
 }
 
-/** Just the hunks for one file, as text (used by the git_diff_context tool). */
-export function fileDiffText(diff: DiffSummary, file: string): string {
-  const f = diff.files.find((x) => x.path === file || x.oldPath === file)
-  if (!f) return `No diff found for ${file}`
-  const out: string[] = [`### ${f.kind.toUpperCase()} ${f.path} (+${f.additions} -${f.deletions})`]
+function hunksText(f: DiffFile): string {
+  const out: string[] = []
   for (const h of f.hunks) {
     out.push(h.header)
     for (const l of h.lines) {
@@ -174,4 +150,66 @@ export function fileDiffText(diff: DiffSummary, file: string): string {
     }
   }
   return out.join('\n')
+}
+
+/**
+ * A compact textual rendering of the whole diff for the agent prompt.
+ *
+ * Large PRs used to either silently drop files past a fixed count or dump every
+ * hunk and blow the context window (the model then hallucinates the rest). So:
+ * we ALWAYS list every changed file's header up front (the planner must see the
+ * full scope), then spend a character budget inlining hunk bodies — biggest
+ * files capped per-file so one giant file can't starve the others. Anything not
+ * inlined is reachable via the repo_diff tool.
+ */
+export function diffToText(diff: DiffSummary, maxChars = 24_000, perFileMax = 6_000): string {
+  const out: string[] = []
+  out.push(`Repository diff: ${diff.base}...${diff.feature}`)
+  out.push(`${diff.files.length} files changed, +${diff.totalAdditions} -${diff.totalDeletions}`)
+  out.push('')
+
+  const bodies: string[] = []
+  let budget = maxChars
+  let omitted = 0
+
+  for (const f of diff.files) {
+    const header = fileHeader(f)
+    if (f.binary) {
+      bodies.push(`${header}\n(binary file)`, '')
+      continue
+    }
+    let body = `${header}\n${hunksText(f)}`
+    if (body.length > perFileMax) {
+      body = `${body.slice(0, perFileMax)}\n… (${f.path} diff truncated — use repo_diff("${f.path}") for the full hunks)`
+    }
+    if (body.length <= budget) {
+      bodies.push(body, '')
+      budget -= body.length
+    } else {
+      omitted++
+    }
+  }
+
+  // If we couldn't inline every file, give the planner the complete file list so
+  // nothing in the change is invisible, then the hunks that fit.
+  if (omitted > 0) {
+    out.push(`All ${diff.files.length} changed files:`)
+    for (const f of diff.files) out.push(fileHeader(f) + (f.binary ? ' (binary)' : ''))
+    out.push('')
+    out.push(`Inlining the hunks that fit a size budget below; ${omitted} file(s)' hunks were omitted — read any with repo_diff(file).`)
+    out.push('')
+  }
+  out.push(...bodies)
+  return out.join('\n').trim()
+}
+
+/** Just the hunks for one file, as text (used by the repo_diff tool + section prompts). */
+export function fileDiffText(diff: DiffSummary, file: string, maxChars = 16_000): string {
+  const f = diff.files.find((x) => x.path === file || x.oldPath === file)
+  if (!f) return `No diff found for ${file}`
+  if (f.binary) return `${fileHeader(f)}\n(binary file)`
+  const text = `${fileHeader(f)}\n${hunksText(f)}`
+  return text.length > maxChars
+    ? `${text.slice(0, maxChars)}\n… (diff truncated — read the file directly with repo_read_file for the rest)`
+    : text
 }

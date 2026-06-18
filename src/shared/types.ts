@@ -111,7 +111,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaKeepAlive: '5m',
   bedrockRegion: 'us-east-1',
   vertexLocation: 'us-central1',
-  maxFilesPerSection: 12,
+  maxFilesPerSection: 20,
   prefetchNext: false
 }
 

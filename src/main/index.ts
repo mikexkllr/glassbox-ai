@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { registerIpc } from './ipc.js'
 import { setupAutoUpdater } from './updater.js'
+import { purgeWorktreeRoot, cleanupWorktrees } from './git/worktree.js'
 
 function appIcon(): string | undefined {
   const p = join(app.getAppPath(), 'build', 'icon.png')
@@ -50,9 +51,14 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   setupAutoUpdater()
+  void purgeWorktreeRoot() // reclaim disk from worktrees orphaned by a prior crash/force-quit
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  void cleanupWorktrees() // remove the feature-branch worktrees we created this run
 })
 
 app.on('window-all-closed', () => {

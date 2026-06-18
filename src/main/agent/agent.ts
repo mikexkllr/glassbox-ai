@@ -13,6 +13,7 @@ import {
   type ReviewPayload
 } from './schema.js'
 import { diffToText, fileDiffText } from '../git/diff.js'
+import { ensureWorktree } from '../git/worktree.js'
 import { getSettings } from '../store/settings.js'
 import type {
   AgentEvent,
@@ -74,7 +75,9 @@ export async function generateOverview(
   emit({ kind: 'status', scope, message: 'Reading the whole change…' })
 
   const model = await makeModel(settings)
-  const { tools } = buildInvestigation({ diff, scope, maxFiles: settings.maxFilesPerSection, emit })
+  emit({ kind: 'status', scope, message: 'Checking out the feature branch in an isolated worktree…' })
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: OverviewPayload | null = null
   const submit = makeSubmitTool(
@@ -87,7 +90,7 @@ export async function generateOverview(
   )
 
   const agent = await makeAgent(model, [...tools, submit])
-  const prompt = `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture, then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-7 sections). Each section needs an id, title, one-line teaser, and its files.`
+  const prompt = `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.`
 
   emit({ kind: 'status', scope, message: 'Forming the big picture…' })
   const res: any = await agent.invoke(
@@ -117,7 +120,8 @@ export async function generateSection(
   emit({ kind: 'status', scope, message: `Investigating "${plan.title}"…` })
 
   const model = await makeModel(settings)
-  const { tools, trail } = buildInvestigation({ diff, scope, maxFiles: settings.maxFilesPerSection, emit })
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: SectionPayload | null = null
   const submit = makeSubmitTool(
@@ -143,7 +147,7 @@ The diff for these files:
 
 ${fileDiffs}
 
-Investigate the real repository with the repo_* tools to ground every explanation (read the changed files in full, follow imports and types, find call sites, peek at tests). Then call submit_walkthrough_section with:
+Investigate the real repository with the repo_* tools to ground every explanation (read the changed files in full, follow imports and types, find call sites, peek at tests; if a diff above was truncated for size, call repo_diff for the full hunks). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary
 - the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), and a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun)
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
@@ -191,7 +195,8 @@ export async function scoreAnswer(
   const scope = 'score'
   const settings = await getSettings()
   const model = await makeModel(settings)
-  const { tools } = buildInvestigation({ diff, scope, maxFiles: Math.min(4, settings.maxFilesPerSection), emit })
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: Math.min(4, settings.maxFilesPerSection), emit })
 
   let captured: ScorePayload | null = null
   const submit = makeSubmitTool(
@@ -233,7 +238,8 @@ export async function generateReview(
   const settings = await getSettings()
   emit({ kind: 'status', scope, message: 'Drafting your review…' })
   const model = await makeModel(settings)
-  const { tools } = buildInvestigation({ diff, scope, maxFiles: settings.maxFilesPerSection, emit })
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
 
   let captured: ReviewPayload | null = null
   const submit = makeSubmitTool(
@@ -274,7 +280,8 @@ async function answer(
 ): Promise<{ answer: string; trail: TrailEntry[] }> {
   const settings = await getSettings()
   const model = await makeModel(settings)
-  const { tools, trail } = buildInvestigation({ diff, scope, maxFiles: settings.maxFilesPerSection, emit })
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature)
+  const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
   const agent = await makeAgent(model, tools)
 
   emit({ kind: 'status', scope, message: 'Looking into it…' })
