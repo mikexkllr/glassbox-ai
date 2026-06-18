@@ -218,14 +218,16 @@ export function buildInvestigation(ctx: InvestigationContext): Investigation {
 }
 
 /** A submit tool: the agent finishes a unit of work by *calling* this with structured args. */
-export function makeSubmitTool<T>(
+export function makeSubmitTool<S extends z.ZodTypeAny>(
   name: string,
   description: string,
-  schema: z.ZodType<T>,
-  onSubmit: (value: T) => void
+  schema: S,
+  onSubmit: (value: z.infer<S>) => void
 ) {
+  // The tool handler receives the schema's *parsed output*, so defaults (e.g.
+  // `.default([])`) are already applied — callers get arrays, never undefined.
   return tool(
-    async (value: T) => {
+    async (value: z.infer<S>) => {
       onSubmit(value)
       return 'Recorded. You are done — do not call any more tools.'
     },

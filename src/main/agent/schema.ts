@@ -79,17 +79,26 @@ export const sectionSchema = z.object({
     .describe('A fuller plain-language explanation (a short paragraph) for the deep-dive dial setting.'),
   files: z.array(z.string()).describe('Repo-relative files this section covers.'),
   chunks: z.array(walkChunk).describe('The notable code chunks in this section, each with its story.'),
+  // The following are best-effort enrichments. Prose-only changes (docs, config)
+  // may have nothing to put here, so they default to [] rather than failing the
+  // whole section if the model omits them.
   inlineExplanations: z
     .array(inlineExplanation)
-    .describe('Hover explanations for the important symbols a reader would poke at.'),
+    .default([])
+    .describe('Hover explanations for the important symbols a reader would poke at. Empty array is fine.'),
   traceableValues: z
     .array(traceableValue)
+    .default([])
     .describe('Zero or more values worth watching flow through the change. Empty array is fine.'),
   selfCheck: selfCheck.optional(),
   insights: z
     .array(z.string())
-    .describe('2-4 "aha" insights or gotchas about this code — the non-obvious things worth knowing.'),
-  quiz: z.array(quizQuestion).describe('1-3 quiz questions that test real understanding of this section.')
+    .default([])
+    .describe('2-4 "aha" insights or gotchas about this code — the non-obvious things worth knowing. Empty array is fine.'),
+  quiz: z
+    .array(quizQuestion)
+    .default([])
+    .describe('1-3 quiz questions that test real understanding of this section. Empty array is fine.')
 })
 
 export type SectionPayload = z.infer<typeof sectionSchema>
@@ -124,7 +133,7 @@ export const overviewSchema = z.object({
   whatGist: z.string().describe('ONE plain sentence: what this PR does.'),
   whatDeep: z.string().describe('A short paragraph: what this PR does, in plain language.'),
   why: z.string().describe('Why this change exists / the problem it solves.'),
-  highlights: z.array(z.string()).describe('3-6 high-level bullet highlights.'),
+  highlights: z.array(z.string()).default([]).describe('3-6 high-level bullet highlights. Empty array is fine.'),
   sections: z
     .array(sectionPlan)
     .describe('A logical breakdown of the change into walkthrough sections, top-down.')
