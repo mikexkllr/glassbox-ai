@@ -20,6 +20,7 @@ import {
   chat,
   explainDeeper,
   scoreAnswer,
+  assessFinding,
   generateReview
 } from './agent/agent.js'
 
@@ -85,13 +86,16 @@ export function registerIpc(): void {
   ipcMain.handle('agent:deeper', async (_e, diff: DiffSummary, anchor: CodeAnchor, current: string) =>
     explainDeeper(diff, anchor, current, emitter())
   )
-  ipcMain.handle('agent:chat', async (_e, diff: DiffSummary, history: ChatMessage[], question: string) =>
-    chat(diff, history, question, emitter())
+  ipcMain.handle('agent:chat', async (_e, diff: DiffSummary, history: ChatMessage[], question: string, context?: string) =>
+    chat(diff, history, question, emitter(), context)
   )
   ipcMain.handle(
     'agent:score',
     async (_e, diff: DiffSummary, question: string, reference: string, userAnswer: string) =>
       scoreAnswer(diff, question, reference, userAnswer, emitter())
+  )
+  ipcMain.handle('agent:assess', async (_e, diff: DiffSummary, anchor: CodeAnchor, note: string) =>
+    assessFinding(diff, anchor, note, emitter())
   )
   ipcMain.handle('agent:review', async (_e, diff: DiffSummary, decision: ReviewDecision, notes: string) =>
     generateReview(diff, decision, notes, emitter())

@@ -28,10 +28,11 @@ const api: GlassboxApi = {
     ipcRenderer.invoke('agent:why', diff, question, context),
   explainDeeper: (diff: DiffSummary, anchor: CodeAnchor, current: string) =>
     ipcRenderer.invoke('agent:deeper', diff, anchor, current),
-  chat: (diff: DiffSummary, history: ChatMessage[], question: string) =>
-    ipcRenderer.invoke('agent:chat', diff, history, question),
+  chat: (diff: DiffSummary, history: ChatMessage[], question: string, context?: string) =>
+    ipcRenderer.invoke('agent:chat', diff, history, question, context),
   scoreAnswer: (diff, question, reference, userAnswer) =>
     ipcRenderer.invoke('agent:score', diff, question, reference, userAnswer),
+  assessFinding: (diff, anchor, note) => ipcRenderer.invoke('agent:assess', diff, anchor, note),
   generateReview: (diff, decision, notes) => ipcRenderer.invoke('agent:review', diff, decision, notes),
 
   loadSession: (key: string) => ipcRenderer.invoke('session:load', key),

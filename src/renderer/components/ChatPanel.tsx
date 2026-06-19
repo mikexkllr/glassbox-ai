@@ -9,8 +9,12 @@ export default function ChatPanel() {
   const history = useStore((s) => s.chatHistory)
   const busy = useStore((s) => s.chatBusy)
   const send = useStore((s) => s.sendChat)
+  const context = useStore((s) => s.chatContext)
   const [q, setQ] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+
+  // First line of the context, trimmed for the chip.
+  const focus = context?.split('\n')[0]?.trim()
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -32,11 +36,19 @@ export default function ChatPanel() {
           transition={{ type: 'spring', stiffness: 320, damping: 34 }}
           className="flex h-full w-[420px] flex-none flex-col border-l border-ink-800 bg-ink-900"
         >
-          <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
-            <div className="text-[13px] font-medium text-white">Ask anything about this code</div>
-            <button onClick={() => setOpen(false)} className="no-drag text-ink-600 hover:text-white">
-              ✕
-            </button>
+          <div className="border-b border-ink-800 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[13px] font-medium text-white">Ask anything about this code</div>
+              <button onClick={() => setOpen(false)} className="no-drag text-ink-600 hover:text-white">
+                ✕
+              </button>
+            </div>
+            {focus && (
+              <div className="mt-2 flex items-center gap-1.5 rounded-md border border-glass-accent/25 bg-glass-accent/5 px-2 py-1 text-[11px] text-glass-accent">
+                <span className="flex-none">📍 Asking about</span>
+                <span className="truncate text-gray-300" title={context ?? undefined}>{focus}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">

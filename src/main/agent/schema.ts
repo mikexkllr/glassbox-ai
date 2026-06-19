@@ -70,6 +70,18 @@ const quizQuestion = z.object({
   explanation: z.string().describe('Why the correct answer is right (and others wrong).')
 })
 
+const reviewFinding = z.object({
+  id: z.string().describe('Short stable id, e.g. "f1".'),
+  file: z.string().describe('Repo-relative file the issue is in.'),
+  startLine: z.number().int().describe('1-based start line of the problematic code (new file numbering).'),
+  endLine: z.number().int().describe('1-based end line of the problematic code.'),
+  severity: z.enum(['bug', 'smell', 'nit', 'question']).describe('bug = likely incorrect; smell = risky/poor; nit = minor; question = unclear intent.'),
+  title: z.string().describe('Short label for the issue, shown once spotted (e.g. "Non-constant-time compare").'),
+  hint: z.string().describe('A VAGUE nudge toward the area without giving it away — what to look for, not the answer.'),
+  explanation: z.string().describe('The deep "why this is a problem" — concrete, grounded in THIS code, teaching the reader.'),
+  suggestion: z.string().optional().describe('How a reviewer would ask for it to be fixed. Optional.')
+})
+
 export const sectionSchema = z.object({
   id: z.string().describe('The section id you were asked to build.'),
   title: z.string(),
@@ -98,10 +110,23 @@ export const sectionSchema = z.object({
   quiz: z
     .array(quizQuestion)
     .default([])
-    .describe('1-3 quiz questions that test real understanding of this section. Empty array is fine.')
+    .describe('1-3 quiz questions that test real understanding of this section. Empty array is fine.'),
+  reviewFindings: z
+    .array(reviewFinding)
+    .default([])
+    .describe('0-3 GENUINE potential issues a careful reviewer would flag in THIS code (bugs, footguns, risky patterns). Only real ones — never invent problems to fill the list. Empty array is fine for clean code.')
 })
 
 export type SectionPayload = z.infer<typeof sectionSchema>
+
+export const findingAssessmentSchema = z.object({
+  score: z.number().int().describe('0-100: how real and well-substantiated the user’s flagged concern is.'),
+  verdict: z.string().describe('One short line: is this a genuine issue?'),
+  reasoning: z.string().describe('Why it is (or isn’t) a real problem, grounded in the actual code.'),
+  severity: z.enum(['bug', 'smell', 'nit', 'question']).describe('Your severity rating for what they flagged.')
+})
+
+export type FindingAssessmentPayload = z.infer<typeof findingAssessmentSchema>
 
 export const scoreSchema = z.object({
   score: z.number().int().describe('0-100: how well the user understood, judged generously but honestly.'),

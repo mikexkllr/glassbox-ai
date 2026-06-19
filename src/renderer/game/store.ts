@@ -61,6 +61,8 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   full_clear: { id: 'full_clear', label: 'Full Clear', emoji: '🏆' },
   high_roller: { id: 'high_roller', label: 'High Roller', emoji: '🎰' },
   code_breaker: { id: 'code_breaker', label: 'Code Breaker', emoji: '🕵️' },
+  bug_hunter: { id: 'bug_hunter', label: 'Bug Hunter', emoji: '🐛' },
+  eagle_eye: { id: 'eagle_eye', label: 'Eagle Eye (cleared a hunt)', emoji: '🦅' },
   flawless: { id: 'flawless', label: 'Flawless Decode', emoji: '🎯' },
   stylish: { id: 'stylish', label: 'Big Drip', emoji: '🛍️' },
   boss_slain: { id: 'boss_slain', label: 'Boss Slain', emoji: '⚔️' }

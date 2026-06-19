@@ -7,10 +7,12 @@ import {
   sectionSchema,
   scoreSchema,
   reviewSchema,
+  findingAssessmentSchema,
   type OverviewPayload,
   type SectionPayload,
   type ScorePayload,
-  type ReviewPayload
+  type ReviewPayload,
+  type FindingAssessmentPayload
 } from './schema.js'
 import { diffToText, fileDiffText } from '../git/diff.js'
 import { ensureWorktree } from '../git/worktree.js'
@@ -20,6 +22,7 @@ import type {
   CodeAnchor,
   ChatMessage,
   DiffSummary,
+  FindingAssessment,
   Overview,
   ReviewDecision,
   ReviewDraft,
@@ -31,9 +34,9 @@ import type {
 
 const RECURSION_LIMIT = 80
 
-const MISSION = `You are Glassbox — a patient tour guide whose ONLY job is to help a human *understand* a code change with as little effort as possible.
+const MISSION = `You are Glassbox — a patient tour guide who helps a human *understand* a code change with as little effort as possible.
 
-You are NOT a reviewer. Do not judge quality, suggest improvements, leave review comments, or score anything. Only explain.
+Your default mode is explaining, not nitpicking: lead with what the code does and why. Some tasks additionally ask you to surface potential issues (to train the reader's review skills) or to draft a PR review — when a task explicitly asks for that, do it, but flag only GENUINE problems grounded in the real code; never invent issues to fill a list.
 
 You have already been given the diff. Genuinely INVESTIGATE the real repository using the repo_* tools — follow imports, read type definitions, open tests, find call sites — so your explanations are real, not guessed. Prefer reading the actual code over speculating. Stay within your file budget; investigate what matters most first.
 
@@ -155,6 +158,7 @@ Investigate the real repository with the repo_* tools to ground every explanatio
 - optionally, a gentle "guess what this does first?" self-check
 - 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
 - 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
+- reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns (e.g. non-constant-time comparisons, unhandled empty/null input, naive parsing, missing validation). For each: the file + exact line range, a severity, a short title, a VAGUE hint (points at the area to look, without giving away the answer), a deep explanation of why it's a problem, and an optional fix suggestion. Only flag real problems — if the code is clean, return an empty array. Do NOT duplicate the same point as both an insight and a finding.
 
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`
 
@@ -177,6 +181,7 @@ Use line numbers from the NEW version of each file. Reuse the section id "${plan
     traceableValues: payload.traceableValues ?? [],
     insights: payload.insights ?? [],
     quiz: payload.quiz ?? [],
+    reviewFindings: payload.reviewFindings ?? [],
     investigationTrail: trail
   }
 }
@@ -222,6 +227,47 @@ Judge generously but honestly. Reward genuine understanding and good intuition e
     return { score: 50, verdict: 'Got it.', good: 'You engaged with it.', missing: extractText(res.messages).slice(0, 200) }
   }
   return captured as ScoreResult
+}
+
+// ---------------------------------------------------------------------------
+// Assess a free-form review flag the user raised (the Bug Hunt's honesty check)
+// ---------------------------------------------------------------------------
+
+export async function assessFinding(
+  diff: DiffSummary,
+  anchor: CodeAnchor,
+  note: string,
+  emit: (e: AgentEvent) => void
+): Promise<FindingAssessment> {
+  const scope = 'assess'
+  const settings = await getSettings()
+  const model = await makeModel(settings)
+  const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
+  const { tools } = buildInvestigation({ diff, scope, repoRoot, maxFiles: Math.min(6, settings.maxFilesPerSection), emit })
+
+  let captured: FindingAssessmentPayload | null = null
+  const submit = makeSubmitTool(
+    'submit_finding_assessment',
+    'Submit your verdict on the user’s flagged concern.',
+    findingAssessmentSchema,
+    (v) => {
+      captured = v
+    }
+  )
+  const agent = await makeAgent(model, [...tools, submit])
+  const prompt = `You are a senior reviewer judging whether a learner's review flag is a real issue.
+
+They flagged ${anchor.file} lines ${anchor.startLine}-${anchor.endLine} and wrote:
+"${note}"
+
+Read the actual code around there with the repo_* tools. Decide, honestly, whether this is a genuine problem (a bug, footgun, risky pattern, or fair concern) or a false alarm. Reward real insight; don't reward vague or wrong flags. Then call submit_finding_assessment with a 0-100 score (how real/substantiated), a one-line verdict, your reasoning grounded in the code, and a severity.`
+
+  const res: any = await agent.invoke({ messages: [{ role: 'user', content: prompt }] }, { recursionLimit: 28 })
+  emit({ kind: 'done', scope })
+  if (!captured) {
+    return { score: 40, verdict: 'Noted.', reasoning: extractText(res.messages).slice(0, 200), severity: 'question' }
+  }
+  return captured as FindingAssessment
 }
 
 // ---------------------------------------------------------------------------
@@ -317,9 +363,16 @@ export function chat(
   diff: DiffSummary,
   history: ChatMessage[],
   question: string,
-  emit: (e: AgentEvent) => void
+  emit: (e: AgentEvent) => void,
+  context?: string
 ) {
-  const prior = history.map((m) => ({ role: m.role, content: m.content }))
-  const prompt = `${question}\n\n(Answer grounded in the actual repository under review. Use the repo_* tools to check before answering. Explain — do not review.)`
-  return answer(diff, 'chat', prompt, emit, prior)
+  const focus = context
+    ? `The reader is currently looking at:\n${context}\n\nWhen they say "this/here/it", assume they mean that unless they clearly mean something else.\n\n`
+    : ''
+  const prompt = `${focus}${question}\n\n(Answer grounded in the actual repository under review. Use the repo_* tools to check before answering. Explain — do not review.)`
+  return answer(diff, 'chat', prompt, emit, prior(history))
+}
+
+function prior(history: ChatMessage[]) {
+  return history.map((m) => ({ role: m.role, content: m.content }))
 }

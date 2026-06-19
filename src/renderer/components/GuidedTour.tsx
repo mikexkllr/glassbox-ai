@@ -81,12 +81,40 @@ function buildBeats(
   return beats
 }
 
-export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
+/** A human-readable description of the current beat, threaded into the Ask chat. */
+function describeBeat(beat: Beat): string {
+  switch (beat.kind) {
+    case 'overview':
+    case 'finale':
+      return 'The big-picture overview of the whole change.'
+    case 'load':
+      return `Section "${beat.plan.title}" (still loading).`
+    case 'intro':
+      return `Section "${beat.section.title}".\nSummary: ${beat.section.plainSummaryGist}`
+    case 'chunk':
+      return `Section "${beat.section.title}" › code block "${beat.chunk.title}" at ${beat.chunk.file}:${beat.chunk.startLine}-${beat.chunk.endLine}.\nWhat changed there: ${beat.chunk.gist}`
+    case 'insight':
+      return `Section "${beat.section.title}" › key insight ${beat.i + 1}: ${beat.text}`
+    case 'trace':
+      return `Section "${beat.plan.title}" › tracing the value "${beat.value.name}" — ${beat.value.description}`
+    case 'selfcheck':
+      return `Section "${beat.section.title}" › the self-check question.`
+    case 'quiz':
+      return `Section "${beat.section.title}" › a quiz question: ${beat.q.question}`
+    case 'vault':
+      return `Section "${beat.section.title}" › the section vault mini-game.`
+    case 'done':
+      return `Section "${beat.section.title}" (just completed).`
+  }
+}
+
+export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => void; onHunt: (section: string) => void }) {
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
   const ensureSection = useStore((s) => s.ensureSection)
   const markWalked = useStore((s) => s.markWalked)
   const prefetchNext = useStore((s) => s.settings?.prefetchNext)
+  const setChatContext = useStore((s) => s.setChatContext)
 
   const rewarded = useGame((s) => s.rewarded)
   const rewardOnce = useGame((s) => s.rewardOnce)
@@ -153,6 +181,12 @@ export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
     }
   }, [clamped, beats])
 
+  // Keep the Ask chat anchored to whatever beat you're on, so "this/here" resolves.
+  useEffect(() => {
+    if (beat) setChatContext(describeBeat(beat))
+  }, [clamped, beats])
+  useEffect(() => () => setChatContext(null), [])
+
   // Keyboard nav (ignored while an overlay — chat/arcade/checkout/settings — is open).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -212,7 +246,7 @@ export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.24 }}
             >
-              {beat && <BeatView beat={beat} onCashout={onCashout} />}
+              {beat && <BeatView beat={beat} onCashout={onCashout} onHunt={onHunt} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -262,7 +296,7 @@ export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
 // Beat renderers
 // ---------------------------------------------------------------------------
 
-function BeatView({ beat, onCashout }: { beat: Beat; onCashout: () => void }) {
+function BeatView({ beat, onCashout, onHunt }: { beat: Beat; onCashout: () => void; onHunt: (section: string) => void }) {
   switch (beat.kind) {
     case 'overview':
       return <OverviewBeat />
@@ -271,7 +305,7 @@ function BeatView({ beat, onCashout }: { beat: Beat; onCashout: () => void }) {
     case 'intro':
       return <IntroBeat plan={beat.plan} section={beat.section} sIdx={beat.sIdx} />
     case 'chunk':
-      return <ChunkBeat plan={beat.plan} section={beat.section} chunk={beat.chunk} />
+      return <ChunkBeat plan={beat.plan} section={beat.section} chunk={beat.chunk} onHunt={onHunt} />
     case 'insight':
       return <InsightBeat plan={beat.plan} section={beat.section} text={beat.text} i={beat.i} />
     case 'trace':
@@ -378,13 +412,14 @@ const CHANGE_META: Record<string, { label: string; cls: string }> = {
 }
 
 /** Active recall: see the code, take a guess, THEN reveal what it does. */
-function ChunkBeat({ plan, section, chunk }: { plan: SectionPlan; section: WalkthroughSection; chunk: WalkChunk }) {
+function ChunkBeat({ plan, section, chunk, onHunt }: { plan: SectionPlan; section: WalkthroughSection; chunk: WalkChunk; onHunt: (section: string) => void }) {
   const rewarded = useGame((s) => s.rewarded)
   const rewardOnce = useGame((s) => s.rewardOnce)
   const diff = useStore((s) => s.diff)
   const revealed = !!rewarded[`story:${chunk.file}:${chunk.id}`]
   const meta = CHANGE_META[chunk.changeKind] ?? CHANGE_META.modified
   const file = diff?.files.find((f) => f.path === chunk.file || f.oldPath === chunk.file)
+  const huntable = (section.reviewFindings?.length ?? 0) > 0
 
   const [lessonOpen, setLessonOpen] = useState(false)
 
@@ -412,6 +447,15 @@ function ChunkBeat({ plan, section, chunk }: { plan: SectionPlan; section: Walkt
         >
           ▶ Learn
         </button>
+        {huntable && (
+          <button
+            onClick={() => onHunt(plan.id)}
+            title="Bug Hunt — can you spot what a reviewer would flag in this section?"
+            className="no-drag mt-0.5 flex-none rounded-lg bg-glass-del/15 px-3 py-1 text-[12px] font-medium text-glass-del hover:bg-glass-del/25"
+          >
+            🚩 Flag
+          </button>
+        )}
       </div>
 
       {lessonOpen && (

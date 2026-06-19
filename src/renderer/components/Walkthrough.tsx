@@ -13,6 +13,7 @@ import Presentation from './Presentation'
 import GuidedTour from './GuidedTour'
 import BlastRadius from './BlastRadius'
 import BossFight from './BossFight'
+import BugHunt from './BugHunt'
 import PRWrapped from './PRWrapped'
 import Mascot from './Mascot'
 import DataFlow from './DataFlow'
@@ -40,6 +41,7 @@ export default function Walkthrough() {
   const [map, setMap] = useState(false)
   const [flow, setFlow] = useState(false)
   const [boss, setBoss] = useState(false)
+  const [hunt, setHunt] = useState<null | { section?: string }>(null)
   const [wrapped, setWrapped] = useState(false)
   const [confirm, setConfirm] = useState<null | 'regenerate' | 'reset'>(null)
   const isMac = window.glassbox.platform === 'darwin'
@@ -145,6 +147,13 @@ export default function Walkthrough() {
             ⚔️
           </button>
           <button
+            onClick={() => setHunt({})}
+            title="Bug Hunt — spot the issues a reviewer would flag"
+            className="no-drag rounded-lg border border-glass-del/40 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-glass-del/70"
+          >
+            🐛
+          </button>
+          <button
             onClick={() => setChatOpen(!chatOpen)}
             className={`no-drag rounded-lg border px-3 py-1.5 text-[12.5px] ${
               chatOpen ? 'border-glass-accent bg-glass-accent/15 text-glass-accent' : 'border-ink-700 text-gray-300 hover:border-ink-600'
@@ -168,7 +177,7 @@ export default function Walkthrough() {
         <UnderstandingMap />
 
         {viewMode === 'guided' ? (
-          <GuidedTour onCashout={openCashout} />
+          <GuidedTour onCashout={openCashout} onHunt={(section) => setHunt({ section })} />
         ) : viewMode === 'presentation' ? (
           <Presentation />
         ) : (
@@ -193,6 +202,7 @@ export default function Walkthrough() {
       {map && <BlastRadius onClose={() => setMap(false)} />}
       {flow && <DataFlow onClose={() => setFlow(false)} />}
       {boss && <BossFight onClose={() => setBoss(false)} onCashout={() => { setBoss(false); openCashout() }} />}
+      {hunt && <BugHunt onClose={() => setHunt(null)} focusSectionId={hunt.section} />}
       {wrapped && (
         <PRWrapped
           onProceed={() => { setWrapped(false); setCheckout(true) }}

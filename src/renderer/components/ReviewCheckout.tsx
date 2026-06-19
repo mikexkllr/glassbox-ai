@@ -18,6 +18,7 @@ export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
   const diff = useStore((s) => s.diff)
   const overview = useStore((s) => s.overview)
   const walked = useStore((s) => s.walked)
+  const findings = useStore((s) => s.findings)
   const coins = useGame((s) => s.coins)
   const spend = useGame((s) => s.spend)
   const unlock = useGame((s) => s.unlock)
@@ -29,18 +30,34 @@ export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
   const allExplored = total > 0 && done === total
   const COST = Math.max(COST_PER_SECTION, COST_PER_SECTION * total)
 
-  const [decision, setDecision] = useState<ReviewDecision>('approve')
+  // A reviewer who flagged real issues probably isn't approving cleanly — default
+  // to "request changes" when there are findings.
+  const hasFindings = findings.length > 0
+  const [decision, setDecision] = useState<ReviewDecision>(hasFindings ? 'request_changes' : 'approve')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<ReviewDraft | null>(null)
   const [copied, setCopied] = useState(false)
+
+  // Serialize the hunt's flags so the drafted review is grounded in what the
+  // reader actually caught (confirmed findings + their own AI-graded concerns).
+  const findingsText = hasFindings
+    ? 'Issues I flagged while reviewing:\n' +
+      findings
+        .map((f) => {
+          const tag = f.matchedId ? 'confirmed' : f.aiScore !== undefined ? `AI ${f.aiScore}/100` : 'flagged'
+          return `- [${f.severity}, ${tag}] ${f.file}:${f.startLine}-${f.endLine}: ${f.note || '(no note)'}`
+        })
+        .join('\n')
+    : ''
 
   const cashOut = async () => {
     if (!diff || busy || !allExplored) return
     if (!spend(COST)) return
     setBusy(true)
     try {
-      const res = await window.glassbox.generateReview(diff, decision, notes)
+      const fullNotes = [findingsText, notes.trim()].filter(Boolean).join('\n\n')
+      const res = await window.glassbox.generateReview(diff, decision, fullNotes)
       setDraft(res)
       unlock('high_roller')
       pushFx({ kind: 'jackpot' })
@@ -83,6 +100,27 @@ export default function ReviewCheckout({ onClose }: { onClose: () => void }) {
 
         {!draft ? (
           <>
+            {hasFindings && (
+              <div className="mb-4 rounded-xl border border-glass-del/30 bg-glass-del/5 p-3">
+                <div className="mb-1.5 text-[12px] font-semibold text-glass-del">
+                  🐛 {findings.length} issue{findings.length === 1 ? '' : 's'} you flagged — folded into the draft
+                </div>
+                <ul className="space-y-1">
+                  {findings.map((f) => (
+                    <li key={f.id} className="flex items-baseline gap-2 text-[12px] text-gray-300">
+                      <span className="font-mono text-[10.5px] text-ink-600">{f.file}:{f.startLine}</span>
+                      <span className="truncate">{f.note || `(${f.severity})`}</span>
+                      {f.matchedId ? (
+                        <span className="ml-auto flex-none text-[10.5px] text-glass-add">✓ confirmed</span>
+                      ) : f.aiScore !== undefined ? (
+                        <span className="ml-auto flex-none text-[10.5px] text-glass-warm">{f.aiScore}/100</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="mb-4 grid grid-cols-3 gap-2">
               {DECISIONS.map((d) => (
                 <button

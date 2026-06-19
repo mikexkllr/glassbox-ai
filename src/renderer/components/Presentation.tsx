@@ -11,12 +11,19 @@ export default function Presentation() {
   const slide = useStore((s) => s.slideIndex)
   const setSlide = useStore((s) => s.setSlide)
   const walked = useStore((s) => s.walked)
+  const setChatContext = useStore((s) => s.setChatContext)
 
   const plans = overview?.sections ?? []
   const total = plans.length + 1
   const atOverview = slide === 0
   const plan = atOverview ? null : plans[slide - 1]
   const isLast = slide >= total - 1
+
+  // Anchor the Ask chat to the slide on screen.
+  useEffect(() => {
+    setChatContext(plan ? `Section "${plan.title}" — ${plan.teaser}` : 'The big-picture overview of the whole change.')
+  }, [slide, plan])
+  useEffect(() => () => setChatContext(null), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

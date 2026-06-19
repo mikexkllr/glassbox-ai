@@ -210,6 +210,56 @@ export interface SelfCheck {
   answer: string
 }
 
+export type FindingSeverity = 'bug' | 'smell' | 'nit' | 'question'
+
+/**
+ * A potential issue the agent — acting as a reviewer — spotted in a section.
+ * It's the quarry for the Bug Hunt: kept hidden behind a vague `hint` until the
+ * reader spots it (or reveals it), then the deep `explanation` teaches the why.
+ */
+export interface ReviewFinding {
+  id: string
+  file: string
+  startLine: number
+  endLine: number
+  severity: FindingSeverity
+  /** Short label, shown once found/revealed. */
+  title: string
+  /** A vague nudge shown during the hunt — points at the area, not the answer. */
+  hint: string
+  /** The deep "why this is a problem" explanation, revealed on find. */
+  explanation: string
+  /** How a reviewer would ask for it to be fixed. Optional. */
+  suggestion?: string
+}
+
+/**
+ * A flag the reader raised while reviewing — either a hit on a {@link ReviewFinding}
+ * or their own free-form concern. Feeds the final review draft and the rewards.
+ */
+export interface UserFinding {
+  id: string
+  sectionId: string
+  file: string
+  startLine: number
+  endLine: number
+  note: string
+  severity: FindingSeverity
+  /** The ReviewFinding this flag matched, if any. */
+  matchedId?: string
+  /** 0-100 substance score from the AI for a free-form (unmatched) flag. */
+  aiScore?: number
+  createdAt: number
+}
+
+/** The AI's verdict on a free-form user flag (anti-farming + teaching). */
+export interface FindingAssessment {
+  score: number // 0-100: how real/substantiated the concern is
+  verdict: string // one short line
+  reasoning: string // why it is (or isn't) a genuine issue, grounded in the code
+  severity: FindingSeverity
+}
+
 export interface QuizQuestion {
   id: string
   question: string
@@ -251,6 +301,8 @@ export interface WalkthroughSection {
   insights: string[]
   /** Quiz questions to test understanding (and earn coins). */
   quiz: QuizQuestion[]
+  /** Potential issues a reviewer might flag — the quarry for the Bug Hunt. */
+  reviewFindings: ReviewFinding[]
   /** Files the agent actually read/grepped to build this section. */
   investigationTrail: TrailEntry[]
 }
@@ -314,6 +366,8 @@ export interface PersistedSession {
   overview?: Overview
   sections: Record<string, WalkthroughSection>
   walked: string[]
+  /** Flags the reader raised during the Bug Hunt / review. */
+  findings: UserFinding[]
   updatedAt: number
 }
 
@@ -337,9 +391,11 @@ export interface GlassboxApi {
   generateOverview: (diff: DiffSummary) => Promise<Overview>
   generateSection: (diff: DiffSummary, plan: SectionPlan) => Promise<WalkthroughSection>
   askWhy: (diff: DiffSummary, question: string, context: string) => Promise<{ answer: string; trail: TrailEntry[] }>
-  chat: (diff: DiffSummary, history: ChatMessage[], question: string) => Promise<{ answer: string; trail: TrailEntry[] }>
+  chat: (diff: DiffSummary, history: ChatMessage[], question: string, context?: string) => Promise<{ answer: string; trail: TrailEntry[] }>
   explainDeeper: (diff: DiffSummary, anchor: CodeAnchor, current: string) => Promise<{ answer: string; trail: TrailEntry[] }>
   scoreAnswer: (diff: DiffSummary, question: string, reference: string, userAnswer: string) => Promise<ScoreResult>
+  /** AI-validate a free-form review flag the user raised (anti-farming + teaching). */
+  assessFinding: (diff: DiffSummary, anchor: CodeAnchor, note: string) => Promise<FindingAssessment>
   generateReview: (diff: DiffSummary, decision: ReviewDecision, notes: string) => Promise<ReviewDraft>
 
   loadSession: (key: string) => Promise<PersistedSession | null>

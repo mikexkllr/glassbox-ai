@@ -8,6 +8,7 @@ import type {
   SectionPlan,
   Settings,
   TrailEntry,
+  UserFinding,
   WalkthroughSection
 } from '@shared/types'
 
@@ -52,6 +53,7 @@ interface State {
   overview: Overview | null
   sections: Record<string, WalkthroughSection>
   walked: string[]
+  findings: UserFinding[]
 
   // interaction state
   depth: Depth
@@ -68,6 +70,8 @@ interface State {
   // chat
   chatHistory: ChatMessage[]
   chatBusy: boolean
+  /** What the user is currently looking at, threaded into Ask so "this/here" resolves. */
+  chatContext: string | null
 
   error: string | null
 
@@ -97,7 +101,10 @@ interface State {
   revealSelfCheck: (id: string) => void
 
   setChatOpen: (open: boolean) => void
+  setChatContext: (ctx: string | null) => void
   sendChat: (q: string) => Promise<void>
+
+  addFinding: (f: UserFinding) => void
 
   handleAgentEvent: (e: AgentEvent) => void
 }
@@ -121,6 +128,7 @@ function persist(get: () => State) {
     overview: s.overview ?? undefined,
     sections: s.sections,
     walked: s.walked,
+    findings: s.findings,
     updatedAt: Date.now()
   })
 }
@@ -142,6 +150,7 @@ export const useStore = create<State>((set, get) => ({
   overview: null,
   sections: {},
   walked: [],
+  findings: [],
 
   depth: 'deep',
   viewMode: 'guided',
@@ -155,6 +164,7 @@ export const useStore = create<State>((set, get) => ({
 
   chatHistory: [],
   chatBusy: false,
+  chatContext: null,
 
   error: null,
 
@@ -217,6 +227,7 @@ export const useStore = create<State>((set, get) => ({
         overview: saved?.overview ?? null,
         sections: saved?.sections ?? {},
         walked: saved?.walked ?? [],
+        findings: saved?.findings ?? [],
         live: {},
         chatHistory: [],
         openSections: {},
@@ -248,13 +259,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   backToOnboarding() {
-    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
+    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, selfCheckResults: {} })
   },
 
   // Discard the cached AI walkthrough for the current branches and re-run it.
   async regenerate() {
     if (!get().diff) return
-    set({ overview: null, sections: {}, walked: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
+    set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
     persist(get) // overwrite the cached session so a reopen also regenerates
     await get().ensureOverview()
   },
@@ -263,7 +274,7 @@ export const useStore = create<State>((set, get) => ({
   // return to onboarding. (The game profile is reset separately by the caller.)
   resetAll() {
     if (get().diff) {
-      set({ overview: null, sections: {}, walked: [] })
+      set({ overview: null, sections: {}, walked: [], findings: [] })
       persist(get)
     }
     get().backToOnboarding()
@@ -323,15 +334,23 @@ export const useStore = create<State>((set, get) => ({
   setChatOpen(open) {
     set({ chatOpen: open })
   },
+  setChatContext(ctx) {
+    set({ chatContext: ctx })
+  },
+
+  addFinding(f) {
+    set((s) => ({ findings: [...s.findings, f] }))
+    persist(get)
+  },
 
   async sendChat(q) {
-    const { diff, chatHistory } = get()
+    const { diff, chatHistory, chatContext } = get()
     if (!diff || !q.trim()) return
     const history = [...chatHistory, { role: 'user' as const, content: q }]
     set({ chatHistory: history, chatBusy: true })
     set((s) => ({ live: { ...s.live, chat: { status: 'Looking into it…', trail: [], busy: true } } }))
     try {
-      const { answer, trail } = await window.glassbox.chat(diff, chatHistory, q)
+      const { answer, trail } = await window.glassbox.chat(diff, chatHistory, q, chatContext ?? undefined)
       set((s) => ({
         chatHistory: [...s.chatHistory, { role: 'assistant', content: answer, trail }],
         chatBusy: false
