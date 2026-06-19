@@ -18,10 +18,24 @@ const STOPWORDS = new Set([
 const GENERIC_DECOYS = ['the cache', 'a fallback', 'the renderer', 'validation', 'the schema', 'the diff', 'a side effect', 'the state']
 
 /** A comprehension challenge baked out of one insight: fill the blanked-out key term. */
-interface Challenge {
+export interface Challenge {
   blanked: string
   answer: string
   options: string[]
+}
+
+/** Salient code symbols from the inline explanations — used as grounded distractors. */
+export function deriveSymbols(explanations: WalkthroughSection['inlineExplanations']): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const e of explanations ?? []) {
+    const s = (e.symbol ?? '').trim()
+    if (s.length >= 3 && s.length <= 28 && !seen.has(s.toLowerCase())) {
+      seen.add(s.toLowerCase())
+      out.push(s)
+    }
+  }
+  return out
 }
 
 /** Find a whole-word occurrence (identifier-aware) of `term` in `text`. */
@@ -61,7 +75,7 @@ function longWords(text: string): string[] {
  * Prefers a real code symbol that appears in the text (grounded distractors);
  * falls back to the most salient word. Returns null if no honest check is possible.
  */
-function buildChallenge(text: string, symbols: string[], allInsights: string[], idx: number): Challenge | null {
+export function buildChallenge(text: string, symbols: string[], allInsights: string[], idx: number): Challenge | null {
   let answer = ''
   let at = -1
   for (const sym of symbols) {
@@ -117,18 +131,7 @@ export default function Insights({
   explanations: WalkthroughSection['inlineExplanations']
   sectionId: string
 }) {
-  const symbols = useMemo(() => {
-    const seen = new Set<string>()
-    const out: string[] = []
-    for (const e of explanations ?? []) {
-      const s = (e.symbol ?? '').trim()
-      if (s.length >= 3 && s.length <= 28 && !seen.has(s.toLowerCase())) {
-        seen.add(s.toLowerCase())
-        out.push(s)
-      }
-    }
-    return out
-  }, [explanations])
+  const symbols = useMemo(() => deriveSymbols(explanations), [explanations])
 
   const challenges = useMemo(
     () => insights.map((text, i) => buildChallenge(text, symbols, insights, i)),
@@ -158,7 +161,7 @@ export default function Insights({
 
 type Phase = 'sealed' | 'quiz' | 'won' | 'lost'
 
-function InsightSlot({
+export function InsightSlot({
   text,
   challenge,
   revealKey,

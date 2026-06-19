@@ -11,6 +11,10 @@ import SelfCheck from './SelfCheck'
 import SectionVault from './MiniGame'
 import LootChest from './LootChest'
 import AgentStatus from './AgentStatus'
+import LessonMode from './LessonMode'
+import WhyThis from './WhyThis'
+import TrailChip from './InvestigationTrail'
+import { InsightSlot, buildChallenge, deriveSymbols } from './Insights'
 
 const EMPTY = new Set<number>()
 
@@ -28,7 +32,7 @@ type Beat =
   | { kind: 'intro'; key: string; plan: SectionPlan; section: WalkthroughSection; sIdx: number }
   | { kind: 'chunk'; key: string; plan: SectionPlan; section: WalkthroughSection; chunk: WalkChunk }
   | { kind: 'insight'; key: string; plan: SectionPlan; section: WalkthroughSection; text: string; i: number }
-  | { kind: 'trace'; key: string; plan: SectionPlan; value: TraceableValue }
+  | { kind: 'trace'; key: string; plan: SectionPlan; section: WalkthroughSection; value: TraceableValue }
   | { kind: 'selfcheck'; key: string; plan: SectionPlan; section: WalkthroughSection }
   | { kind: 'quiz'; key: string; plan: SectionPlan; section: WalkthroughSection; q: WalkthroughSection['quiz'][number]; qi: number }
   | { kind: 'vault'; key: string; plan: SectionPlan; section: WalkthroughSection }
@@ -64,7 +68,7 @@ function buildBeats(
       beats.push({ kind: 'insight', key: `insight:${plan.id}:${i}`, plan, section, text, i })
     )
     for (const value of section.traceableValues ?? [])
-      beats.push({ kind: 'trace', key: `trace:${plan.id}:${value.id}`, plan, value })
+      beats.push({ kind: 'trace', key: `trace:${plan.id}:${value.id}`, plan, section, value })
     if (section.selfCheck)
       beats.push({ kind: 'selfcheck', key: `selfcheck:${plan.id}`, plan, section })
     ;(section.quiz ?? []).forEach((q, qi) =>
@@ -114,19 +118,18 @@ export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
   const isLast = clamped >= beats.length - 1
 
   // Reveal handler shared by the button and the keyboard. Idempotent.
+  // Insights are intentionally excluded — there you pull the slot lever yourself.
   const revealCurrent = () => {
     if (!beat) return
     if (beat.kind === 'chunk')
       rewardOnce(`story:${beat.chunk.file}:${beat.chunk.id}`, 4, { reason: 'dug in', sound: 'reveal' })
-    else if (beat.kind === 'insight')
-      rewardOnce(`insight:${beat.plan.id}:${beat.i}`, 5, { reason: 'aha 💡', sound: 'reveal' })
   }
 
   const goNext = () => {
     if (isLast) return
     if (!canAdvance) {
       // A check is blocking — nudge with a reveal where that makes sense.
-      if (beat?.kind === 'chunk' || beat?.kind === 'insight') revealCurrent()
+      if (beat?.kind === 'chunk') revealCurrent()
       return
     }
     play('tick')
@@ -227,8 +230,9 @@ export default function GuidedTour({ onCashout }: { onCashout: () => void }) {
         <div className="flex-1 text-center text-[11px] text-ink-600">
           {clamped + 1} / {beats.length}
           {!canAdvance && beat?.kind === 'quiz' && <span className="ml-2 text-glass-warm">answer to continue</span>}
-          {!canAdvance && (beat?.kind === 'chunk' || beat?.kind === 'insight') && (
-            <span className="ml-2 text-glass-warm">reveal to continue</span>
+          {!canAdvance && beat?.kind === 'chunk' && <span className="ml-2 text-glass-warm">reveal to continue</span>}
+          {!canAdvance && beat?.kind === 'insight' && (
+            <span className="ml-2 text-glass-warm">pull the lever to continue</span>
           )}
         </div>
         <div className="w-[150px] text-right">
@@ -269,9 +273,9 @@ function BeatView({ beat, onCashout }: { beat: Beat; onCashout: () => void }) {
     case 'chunk':
       return <ChunkBeat plan={beat.plan} section={beat.section} chunk={beat.chunk} />
     case 'insight':
-      return <InsightBeat plan={beat.plan} text={beat.text} i={beat.i} />
+      return <InsightBeat plan={beat.plan} section={beat.section} text={beat.text} i={beat.i} />
     case 'trace':
-      return <TraceBeat plan={beat.plan} value={beat.value} />
+      return <TraceBeat plan={beat.plan} section={beat.section} value={beat.value} />
     case 'selfcheck':
       return <SelfCheck check={beat.section.selfCheck!} sectionId={beat.plan.id} />
     case 'quiz':
@@ -292,6 +296,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 function OverviewBeat() {
   const overview = useStore((s) => s.overview)!
   const depth = useStore((s) => s.depth)
+  const diff = useStore((s) => s.diff)
   return (
     <div>
       <Eyebrow>✦ Big picture</Eyebrow>
@@ -312,6 +317,16 @@ function OverviewBeat() {
             </li>
           ))}
         </ul>
+      )}
+      {diff && (
+        <div className="mt-5 flex flex-wrap items-center gap-4 text-[12px] text-ink-600">
+          <span>{diff.files.length} files</span>
+          <span className="text-glass-add">+{diff.totalAdditions}</span>
+          <span className="text-glass-del">−{diff.totalDeletions}</span>
+          <span className="font-mono">
+            {diff.base} → {diff.feature}
+          </span>
+        </div>
       )}
       <p className="mt-6 text-[13px] text-ink-600">
         {overview.sections.length} sections ahead — press <kbd className="rounded bg-ink-800 px-1.5 py-0.5">→</kbd> to begin
@@ -366,8 +381,12 @@ const CHANGE_META: Record<string, { label: string; cls: string }> = {
 function ChunkBeat({ plan, section, chunk }: { plan: SectionPlan; section: WalkthroughSection; chunk: WalkChunk }) {
   const rewarded = useGame((s) => s.rewarded)
   const rewardOnce = useGame((s) => s.rewardOnce)
+  const diff = useStore((s) => s.diff)
   const revealed = !!rewarded[`story:${chunk.file}:${chunk.id}`]
   const meta = CHANGE_META[chunk.changeKind] ?? CHANGE_META.modified
+  const file = diff?.files.find((f) => f.path === chunk.file || f.oldPath === chunk.file)
+
+  const [lessonOpen, setLessonOpen] = useState(false)
 
   const reveal = () =>
     rewardOnce(`story:${chunk.file}:${chunk.id}`, 4, { reason: 'dug in', sound: 'reveal' })
@@ -378,7 +397,26 @@ function ChunkBeat({ plan, section, chunk }: { plan: SectionPlan; section: Walkt
         <span className={cn('mr-2 rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider', meta.cls)}>{meta.label}</span>
         {chunk.file}:{chunk.startLine}
       </Eyebrow>
-      <h1 className="text-[20px] font-bold text-white">{chunk.title}</h1>
+      <div className="flex items-start gap-3">
+        <h1 className="min-w-0 flex-1 text-[20px] font-bold text-white">{chunk.title}</h1>
+        {file && (
+          <span className="mt-1 flex-none font-mono text-[11px]">
+            <span className="text-glass-add">+{file.additions}</span>{' '}
+            <span className="text-glass-del">−{file.deletions}</span>
+          </span>
+        )}
+        <button
+          onClick={() => setLessonOpen(true)}
+          title="Lesson Mode — step through this block one idea at a time"
+          className="no-drag mt-0.5 flex-none rounded-lg bg-glass-accent2/15 px-3 py-1 text-[12px] font-medium text-glass-accent2 hover:bg-glass-accent2/25"
+        >
+          ▶ Learn
+        </button>
+      </div>
+
+      {lessonOpen && (
+        <LessonMode chunk={chunk} explanations={section.inlineExplanations} onClose={() => setLessonOpen(false)} />
+      )}
 
       <div className="mt-4 overflow-hidden rounded-xl border border-ink-700 bg-ink-900">
         <PokeableCode
@@ -417,6 +455,10 @@ function ChunkBeat({ plan, section, chunk }: { plan: SectionPlan; section: Walkt
           )}
         </motion.div>
       )}
+
+      <div className="mt-4 border-t border-ink-800 pt-3">
+        <WhyThis context={`${chunk.title} (${chunk.file}:${chunk.startLine}-${chunk.endLine}). ${chunk.gist}. ${chunk.story.what}`} />
+      </div>
     </div>
   )
 }
@@ -430,45 +472,52 @@ function Field({ label, text }: { label: string; text: string }) {
   )
 }
 
-/** Insight as active recall: predict the takeaway, then reveal it. */
-function InsightBeat({ plan, text, i }: { plan: SectionPlan; text: string; i: number }) {
-  const rewarded = useGame((s) => s.rewarded)
-  const rewardOnce = useGame((s) => s.rewardOnce)
-  const revealed = !!rewarded[`insight:${plan.id}:${i}`]
+/**
+ * Insight as a slot machine: pull the lever to reveal the "aha", then lock in the
+ * jackpot by filling the blank. Shares the exact reward keys + comprehension
+ * mechanic as the scroll/presentation views (the `InsightSlot` component).
+ */
+function InsightBeat({ plan, section, text, i }: { plan: SectionPlan; section: WalkthroughSection; text: string; i: number }) {
+  const symbols = useMemo(() => deriveSymbols(section.inlineExplanations), [section.inlineExplanations])
+  const challenge = useMemo(
+    () => buildChallenge(text, symbols, section.insights ?? [], i),
+    [text, symbols, section.insights, i]
+  )
 
   return (
     <div>
       <Eyebrow>💡 Key insight {i + 1}</Eyebrow>
-      {!revealed ? (
-        <div className="rounded-2xl border border-dashed border-glass-accent2/40 bg-glass-accent2/5 p-8 text-center">
-          <div className="text-[40px]">🧠</div>
-          <p className="mt-2 text-[15px] text-gray-200">There's an "aha" hiding in this section.</p>
-          <button
-            onClick={() => rewardOnce(`insight:${plan.id}:${i}`, 5, { reason: 'aha 💡', sound: 'reveal' })}
-            className="no-drag mt-4 rounded-lg bg-glass-accent2 px-5 py-2 text-[13.5px] font-semibold text-ink-950 hover:brightness-110"
-          >
-            Reveal the insight · +5🪙
-          </button>
-        </div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="rounded-2xl border border-glass-accent2/30 bg-glass-accent2/5 p-6"
-        >
-          <p className="text-[17px] leading-relaxed text-gray-100">{text}</p>
-        </motion.div>
-      )}
+      <p className="mb-3 text-[14px] text-gray-300">There's an "aha" hiding here — pull the lever to surface it, then lock it in.</p>
+      <InsightSlot
+        text={text}
+        challenge={challenge}
+        revealKey={`insight:${plan.id}:${i}`}
+        lockKey={`insightlock:${plan.id}:${i}`}
+      />
     </div>
   )
 }
 
-/** Watch a value flow through the change, one step at a time. */
-function TraceBeat({ plan, value }: { plan: SectionPlan; value: TraceableValue }) {
+/** Watch a value flow through the change, one step at a time — synced to the code. */
+function TraceBeat({ plan, section, value }: { plan: SectionPlan; section: WalkthroughSection; value: TraceableValue }) {
   const rewardOnce = useGame((s) => s.rewardOnce)
   const [i, setI] = useState(0)
   const steps = value.steps
   const atEnd = i >= steps.length - 1
+  const cur = steps[i]
+
+  // Code window for the active step's file: spans that file's step lines (padded),
+  // clamped to a focused window if the steps are scattered far apart.
+  const win = useMemo(() => {
+    const nums = steps.filter((s) => s.file === cur.file).map((s) => s.line)
+    let lo = Math.max(1, Math.min(...nums) - 2)
+    let hi = Math.max(...nums) + 2
+    if (hi - lo > 40) {
+      lo = Math.max(1, cur.line - 4)
+      hi = cur.line + 5
+    }
+    return { startLine: lo, endLine: hi, traceLines: new Set(nums) }
+  }, [cur.file, cur.line, steps])
 
   const step = (n: number) => {
     const next = Math.max(0, Math.min(steps.length - 1, n))
@@ -482,6 +531,20 @@ function TraceBeat({ plan, value }: { plan: SectionPlan; value: TraceableValue }
     <div>
       <Eyebrow>🎬 Trace · {value.name}</Eyebrow>
       <p className="text-[14px] leading-relaxed text-gray-200">{value.description}</p>
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-ink-700 bg-ink-900">
+        <div className="border-b border-ink-700 bg-ink-850 px-3 py-1.5 font-mono text-[10.5px] text-ink-600">
+          {cur.file}
+        </div>
+        <PokeableCode
+          file={cur.file}
+          startLine={win.startLine}
+          endLine={win.endLine}
+          explanations={section.inlineExplanations}
+          traceLines={win.traceLines}
+          activeLine={cur.line}
+        />
+      </div>
 
       <div className="mt-4 space-y-2">
         {steps.map((s, idx) => {
@@ -558,6 +621,7 @@ function DoneBeat({ plan, section, sIdx }: { plan: SectionPlan; section: Walkthr
           quizIds={(section.quiz ?? []).map((q) => q.id)}
           hasSelfCheck={!!section.selfCheck}
         />
+        <TrailChip trail={section.investigationTrail} />
       </div>
     </div>
   )
