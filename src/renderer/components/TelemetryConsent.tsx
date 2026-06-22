@@ -22,11 +22,7 @@ export default function TelemetryConsent() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-    >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, y: 28, scale: 0.94 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -95,6 +91,6 @@ export default function TelemetryConsent() {
           .
         </p>
       </motion.div>
-    </motion.div>
+    </div>
   )
 }

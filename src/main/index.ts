@@ -50,17 +50,23 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(async () => {
-  // Init Sentry before anything else so crashes during startup are captured.
-  const settings = await getSettings()
-  if (settings.telemetry) {
-    Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
-  }
-
+app.whenReady().then(() => {
+  // Register IPC handlers and open the window synchronously so the renderer
+  // never fires an invoke before its handler exists.
   registerIpc()
   createWindow()
   setupAutoUpdater()
   void purgeWorktreeRoot() // reclaim disk from worktrees orphaned by a prior crash/force-quit
+
+  // Init Sentry in the background — reads settings from disk but must not
+  // delay registerIpc() / createWindow() (that caused a race where the renderer
+  // called 'settings:get' before the handler was registered).
+  void getSettings().then((settings) => {
+    if (settings.telemetry) {
+      Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
+    }
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

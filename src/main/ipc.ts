@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/electron/main'
 // before it propagates to the renderer as a rejected invoke().
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function handle(channel: string, fn: (...args: any[]) => any): void {
-  handle(channel, async (event, ...args) => {
+  ipcMain.handle(channel, async (event, ...args) => {
     try {
       return await fn(event, ...args)
     } catch (err) {
