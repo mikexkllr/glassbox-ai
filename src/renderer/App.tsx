@@ -5,6 +5,7 @@ import Onboarding from './components/Onboarding'
 import Walkthrough from './components/Walkthrough'
 import SettingsModal from './components/Settings'
 import TelemetryConsent, { initSentryRenderer } from './components/TelemetryConsent'
+import ToastStack from './components/ToastStack'
 import FxLayer from './components/FxLayer'
 import CursorTrail from './components/CursorTrail'
 
@@ -33,6 +34,7 @@ export default function App() {
       {screen === 'onboarding' ? <Onboarding /> : <Walkthrough />}
       {settingsOpen && <SettingsModal />}
       {needsConsent && <TelemetryConsent />}
+      <ToastStack />
       <FxLayer />
       <CursorTrail />
     </div>

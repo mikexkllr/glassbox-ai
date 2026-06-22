@@ -6,7 +6,7 @@ import { SENTRY_DSN, SENTRY_RELEASE } from '@shared/sentry-config'
 let sentryRendererInitialized = false
 
 export function initSentryRenderer() {
-  if (sentryRendererInitialized || SENTRY_DSN === 'YOUR_SENTRY_DSN_HERE') return
+  if (sentryRendererInitialized) return
   sentryRendererInitialized = true
   Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
 }

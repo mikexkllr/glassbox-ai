@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import * as Sentry from '@sentry/electron/renderer'
 import type {
   AgentEvent,
   ChatMessage,
@@ -11,6 +12,8 @@ import type {
   UserFinding,
   WalkthroughSection
 } from '@shared/types'
+
+let _toastSeq = 0
 
 export interface SelfCheckResult {
   guess: string
@@ -66,6 +69,14 @@ interface State {
 
   // live agent telemetry, keyed by scope (section id, "overview", "chat", ...)
   live: Record<string, LiveScope>
+
+  // non-blocking error toasts
+  toasts: Array<{ id: string; message: string }>
+  addToast: (message: string) => void
+  dismissToast: (id: string) => void
+
+  // retry a failed section without clearing the rest of the walkthrough
+  retrySection: (plan: SectionPlan) => Promise<void>
 
   // chat
   chatHistory: ChatMessage[]
@@ -162,6 +173,16 @@ export const useStore = create<State>((set, get) => ({
 
   live: {},
 
+  toasts: [],
+  addToast(message) {
+    const id = String(++_toastSeq)
+    set((s) => ({ toasts: [...s.toasts, { id, message: message.slice(0, 120) }] }))
+    setTimeout(() => get().dismissToast(id), 6000)
+  },
+  dismissToast(id) {
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+  },
+
   chatHistory: [],
   chatBusy: false,
   chatContext: null,
@@ -246,14 +267,18 @@ export const useStore = create<State>((set, get) => ({
   async ensureOverview() {
     const { diff } = get()
     if (!diff) return
-    set((s) => ({ live: { ...s.live, overview: { status: 'Starting…', trail: [], busy: true } } }))
+    // Clear any stale error so the spinner shows immediately when retrying.
+    set((s) => ({ live: { ...s.live, overview: { status: 'Starting…', trail: [], busy: true, error: undefined } } }))
     try {
       const overview = await window.glassbox.generateOverview(diff)
       set({ overview })
       persist(get)
     } catch (e) {
+      const err = e as Error
+      Sentry.captureException(err, { extra: { scope: 'overview' } })
+      get().addToast(`Overview failed: ${err.message}`)
       set((s) => ({
-        live: { ...s.live, overview: { ...(s.live.overview ?? { status: '', trail: [] }), busy: false, error: (e as Error).message } }
+        live: { ...s.live, overview: { ...(s.live.overview ?? { status: '', trail: [] }), busy: false, error: err.message } }
       }))
     }
   },
@@ -285,19 +310,33 @@ export const useStore = create<State>((set, get) => ({
     if (!diff) return
     if (sections[plan.id]) return
     if (live[plan.id]?.busy) return
-    set((s) => ({ live: { ...s.live, [plan.id]: { status: 'Starting…', trail: [], busy: true } } }))
+    // Clear any stale error so the spinner shows immediately when retrying.
+    set((s) => ({ live: { ...s.live, [plan.id]: { status: 'Starting…', trail: [], busy: true, error: undefined } } }))
     try {
       const section = await window.glassbox.generateSection(diff, plan)
       set((s) => ({ sections: { ...s.sections, [plan.id]: section } }))
       persist(get)
     } catch (e) {
+      const err = e as Error
+      Sentry.captureException(err, { extra: { scope: plan.id, sectionTitle: plan.title } })
+      get().addToast(`"${plan.title}" failed: ${err.message}`)
       set((s) => ({
         live: {
           ...s.live,
-          [plan.id]: { ...(s.live[plan.id] ?? { status: '', trail: [] }), busy: false, error: (e as Error).message }
+          [plan.id]: { ...(s.live[plan.id] ?? { status: '', trail: [] }), busy: false, error: err.message }
         }
       }))
     }
+  },
+
+  retrySection: async (plan) => {
+    // Clear only this section's error state and re-trigger loading.
+    set((s) => {
+      const newLive = { ...s.live }
+      delete newLive[plan.id]
+      return { live: newLive }
+    })
+    await get().ensureSection(plan)
   },
 
   markWalked(id) {
@@ -375,6 +414,12 @@ export const useStore = create<State>((set, get) => ({
       } else if (e.kind === 'error') {
         next.busy = false
         next.error = e.message
+        // These errors may already be captured in ensureSection/ensureOverview catch blocks,
+        // but stream-level errors (e.g. tool failures) may only arrive here.
+        Sentry.captureMessage(e.message, { level: 'error', extra: { scope: e.scope } })
+        // Show a non-blocking toast; addToast is called outside set() to avoid
+        // nested state mutation.
+        setTimeout(() => get().addToast(e.message), 0)
       }
       return { live: { ...s.live, [e.scope]: next } }
     })

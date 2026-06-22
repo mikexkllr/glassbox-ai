@@ -111,7 +111,9 @@ function describeBeat(beat: Beat): string {
 export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => void; onHunt: (section: string) => void }) {
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
+  const live = useStore((s) => s.live)
   const ensureSection = useStore((s) => s.ensureSection)
+  const ensureOverview = useStore((s) => s.ensureOverview)
   const markWalked = useStore((s) => s.markWalked)
   const prefetchNext = useStore((s) => s.settings?.prefetchNext)
   const setChatContext = useStore((s) => s.setChatContext)
@@ -137,7 +139,8 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
       case 'quiz':
         return !!rewarded[`quizsolved:${b.plan.id}:${b.q.id}`]
       case 'load':
-        return false
+        // A section that errored is skippable — user can retry inline or move on.
+        return !!live[b.plan.id]?.error
       default:
         return true
     }
@@ -201,10 +204,24 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
   }, [clamped, beats, canAdvance])
 
   if (!overview) {
+    const overviewLive = live['overview']
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+      <div className="flex min-h-0 flex-1 items-start justify-center px-8 pt-14">
         <div className="w-full max-w-md">
-          <AgentStatus scope="overview" />
+          {overviewLive?.error ? (
+            <div className="rounded-xl border border-glass-del/30 bg-glass-del/8 p-4">
+              <p className="text-[13px] font-semibold text-glass-del">Failed to generate walkthrough</p>
+              <p className="mt-1 line-clamp-3 text-[12px] text-ink-600">{overviewLive.error}</p>
+              <button
+                onClick={ensureOverview}
+                className="no-drag mt-3 rounded-lg border border-ink-700 px-3 py-1.5 text-[12px] text-gray-300 hover:border-ink-500 hover:text-white"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <AgentStatus scope="overview" />
+          )}
         </div>
       </div>
     )
@@ -370,13 +387,34 @@ function OverviewBeat() {
 }
 
 function LoadBeat({ plan, sIdx }: { plan: SectionPlan; sIdx: number }) {
+  const live = useStore((s) => s.live[plan.id])
+  const retrySection = useStore((s) => s.retrySection)
+
   return (
     <div>
       <Eyebrow>Section {sIdx + 1}</Eyebrow>
       <h1 className="text-[24px] font-bold text-white">{plan.title}</h1>
       <p className="mt-2 text-[14px] text-ink-600">{plan.teaser}</p>
       <div className="mt-6">
-        <AgentStatus scope={plan.id} />
+        {live?.error && !live.busy ? (
+          <div className="rounded-xl border border-glass-del/30 bg-glass-del/8 p-3">
+            <p className="flex items-center gap-2 text-[12.5px] text-glass-del">
+              <span>⚠</span>
+              <span className="line-clamp-2">{live.error}</span>
+            </p>
+            <div className="mt-2.5 flex items-center gap-3">
+              <button
+                onClick={() => retrySection(plan)}
+                className="no-drag rounded border border-ink-700 px-2.5 py-1 text-[11.5px] text-gray-300 hover:border-ink-500 hover:text-white"
+              >
+                Retry
+              </button>
+              <span className="text-[10.5px] text-ink-600">or press → to skip this section</span>
+            </div>
+          </div>
+        ) : (
+          <AgentStatus scope={plan.id} />
+        )}
       </div>
     </div>
   )

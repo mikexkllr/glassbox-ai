@@ -53,7 +53,7 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   // Init Sentry before anything else so crashes during startup are captured.
   const settings = await getSettings()
-  if (settings.telemetry && SENTRY_DSN !== 'YOUR_SENTRY_DSN_HERE') {
+  if (settings.telemetry) {
     Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
   }
 
