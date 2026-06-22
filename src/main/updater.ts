@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Notification } from 'electron'
+import * as Sentry from '@sentry/electron/main'
 // electron-updater is CommonJS; the main process is bundled as ESM, so a named
 // import fails at runtime ("Named export 'autoUpdater' not found"). Default-import
 // the module and destructure instead.
@@ -34,6 +35,7 @@ export function setupAutoUpdater(): void {
 
   autoUpdater.on('error', (err) => {
     console.error('[updater] error:', err?.message ?? err)
+    Sentry.captureException(err, { extra: { source: 'auto-updater' } })
   })
   autoUpdater.on('checking-for-update', () => console.log('[updater] checking for update…'))
   autoUpdater.on('update-available', (info) =>

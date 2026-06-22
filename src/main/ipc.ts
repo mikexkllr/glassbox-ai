@@ -1,4 +1,19 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
+import * as Sentry from '@sentry/electron/main'
+
+// Wraps ipcMain.handle so any unhandled exception is captured by Sentry
+// before it propagates to the renderer as a rejected invoke().
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function handle(channel: string, fn: (...args: any[]) => any): void {
+  handle(channel, async (event, ...args) => {
+    try {
+      return await fn(event, ...args)
+    } catch (err) {
+      Sentry.captureException(err, { extra: { ipcChannel: channel } })
+      throw err
+    }
+  })
+}
 import type {
   AgentEvent,
   ChatMessage,
@@ -33,7 +48,7 @@ function emitter(): (e: AgentEvent) => void {
 }
 
 export function registerIpc(): void {
-  ipcMain.handle('repo:pick', async () => {
+  handle('repo:pick', async () => {
     const res = await dialog.showOpenDialog({
       title: 'Choose a git repository',
       properties: ['openDirectory']
@@ -41,19 +56,19 @@ export function registerIpc(): void {
     return res.canceled || !res.filePaths[0] ? null : res.filePaths[0]
   })
 
-  ipcMain.handle('repo:branches', async (_e, repoPath: string) => listBranches(repoPath))
+  handle('repo:branches', async (_e, repoPath: string) => listBranches(repoPath))
 
-  ipcMain.handle('repo:diff', async (_e, repoPath: string, base: string, feature: string) =>
+  handle('repo:diff', async (_e, repoPath: string, base: string, feature: string) =>
     computeDiff(repoPath, base, feature)
   )
 
-  ipcMain.handle('repo:file', async (_e, repoPath: string, ref: string, file: string) =>
+  handle('repo:file', async (_e, repoPath: string, ref: string, file: string) =>
     showFile(repoPath, ref, file)
   )
 
-  ipcMain.handle('settings:get', async () => getSettings())
-  ipcMain.handle('settings:save', async (_e, s: Settings) => saveSettings(s))
-  ipcMain.handle('ollama:models', async (_e, baseUrl: string) => {
+  handle('settings:get', async () => getSettings())
+  handle('settings:save', async (_e, s: Settings) => saveSettings(s))
+  handle('ollama:models', async (_e, baseUrl: string) => {
     try {
       const url = (baseUrl || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags'
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
@@ -65,7 +80,7 @@ export function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('settings:test', async () => {
+  handle('settings:test', async () => {
     try {
       const model = await makeModel(await getSettings())
       const res = await model.invoke('Reply with the single word: ready')
@@ -76,31 +91,31 @@ export function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('agent:overview', async (_e, diff: DiffSummary) => generateOverview(diff, emitter()))
-  ipcMain.handle('agent:section', async (_e, diff: DiffSummary, plan: SectionPlan) =>
+  handle('agent:overview', async (_e, diff: DiffSummary) => generateOverview(diff, emitter()))
+  handle('agent:section', async (_e, diff: DiffSummary, plan: SectionPlan) =>
     generateSection(diff, plan, emitter())
   )
-  ipcMain.handle('agent:why', async (_e, diff: DiffSummary, question: string, context: string) =>
+  handle('agent:why', async (_e, diff: DiffSummary, question: string, context: string) =>
     askWhy(diff, question, context, emitter())
   )
-  ipcMain.handle('agent:deeper', async (_e, diff: DiffSummary, anchor: CodeAnchor, current: string) =>
+  handle('agent:deeper', async (_e, diff: DiffSummary, anchor: CodeAnchor, current: string) =>
     explainDeeper(diff, anchor, current, emitter())
   )
-  ipcMain.handle('agent:chat', async (_e, diff: DiffSummary, history: ChatMessage[], question: string, context?: string) =>
+  handle('agent:chat', async (_e, diff: DiffSummary, history: ChatMessage[], question: string, context?: string) =>
     chat(diff, history, question, emitter(), context)
   )
-  ipcMain.handle(
+  handle(
     'agent:score',
     async (_e, diff: DiffSummary, question: string, reference: string, userAnswer: string) =>
       scoreAnswer(diff, question, reference, userAnswer, emitter())
   )
-  ipcMain.handle('agent:assess', async (_e, diff: DiffSummary, anchor: CodeAnchor, note: string) =>
+  handle('agent:assess', async (_e, diff: DiffSummary, anchor: CodeAnchor, note: string) =>
     assessFinding(diff, anchor, note, emitter())
   )
-  ipcMain.handle('agent:review', async (_e, diff: DiffSummary, decision: ReviewDecision, notes: string) =>
+  handle('agent:review', async (_e, diff: DiffSummary, decision: ReviewDecision, notes: string) =>
     generateReview(diff, decision, notes, emitter())
   )
 
-  ipcMain.handle('session:load', async (_e, key: string) => loadSession(key))
-  ipcMain.handle('session:save', async (_e, session: PersistedSession) => saveSession(session))
+  handle('session:load', async (_e, key: string) => loadSession(key))
+  handle('session:save', async (_e, session: PersistedSession) => saveSession(session))
 }
