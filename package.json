@@ -27,6 +27,7 @@
     "@langchain/langgraph": "^1.4.2",
     "@langchain/ollama": "^1.2.7",
     "@langchain/openai": "^1.4.7",
+    "@sentry/electron": "^7.13.0",
     "deepagents": "^1.10.2",
     "electron-updater": "^6.3.9",
     "parse-diff": "^0.12.0",
@@ -75,8 +76,20 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ]
     },
     "dmg": {
@@ -84,7 +97,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -95,7 +113,12 @@
     "linux": {
       "category": "Development",
       "target": [
-        { "target": "AppImage", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "maintainer": "Mike Keller"
     }

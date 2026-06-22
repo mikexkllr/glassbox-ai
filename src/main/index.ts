@@ -4,6 +4,9 @@ import { existsSync } from 'node:fs'
 import { registerIpc } from './ipc.js'
 import { setupAutoUpdater } from './updater.js'
 import { purgeWorktreeRoot, cleanupWorktrees } from './git/worktree.js'
+import { getSettings } from './store/settings.js'
+import { SENTRY_DSN, SENTRY_RELEASE } from '@shared/sentry-config'
+import * as Sentry from '@sentry/electron/main'
 
 function appIcon(): string | undefined {
   const p = join(app.getAppPath(), 'build', 'icon.png')
@@ -47,7 +50,13 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Init Sentry before anything else so crashes during startup are captured.
+  const settings = await getSettings()
+  if (settings.telemetry && SENTRY_DSN !== 'YOUR_SENTRY_DSN_HERE') {
+    Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
+  }
+
   registerIpc()
   createWindow()
   setupAutoUpdater()

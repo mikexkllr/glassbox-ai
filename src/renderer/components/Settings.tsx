@@ -259,6 +259,21 @@ export default function SettingsModal() {
           </span>
         </label>
 
+        <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-lg border border-ink-700 bg-ink-850/40 p-3">
+          <input
+            type="checkbox"
+            checked={draft.telemetry ?? false}
+            onChange={(e) => set({ telemetry: e.target.checked })}
+            className="no-drag mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="text-[13px] font-medium text-gray-200">Anonymous crash reporting</span>
+            <span className="mt-0.5 block text-[11px] text-ink-600">
+              Send error reports to Sentry so we can find and fix bugs. No code content or API keys are ever included.
+            </span>
+          </span>
+        </label>
+
         {test && (
           <div className={`mb-3 rounded-lg px-3 py-2 text-[12.5px] ${test.ok ? 'bg-glass-add/15 text-glass-add' : 'bg-glass-del/15 text-glass-del'}`}>
             {test.message}

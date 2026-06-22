@@ -100,6 +100,9 @@ export interface Settings {
   maxFilesPerSection: number
   // Generate the next section in the background while reading the current one.
   prefetchNext: boolean
+  // Whether the user consented to anonymous crash reporting via Sentry.
+  // undefined = not yet asked, true = opted in, false = declined.
+  telemetry?: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
