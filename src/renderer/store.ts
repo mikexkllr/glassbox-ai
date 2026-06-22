@@ -259,6 +259,7 @@ export const useStore = create<State>((set, get) => ({
         await get().ensureOverview()
       }
     } catch (e) {
+      Sentry.captureException(e, { extra: { scope: 'startWalkthrough' } })
       set({ busyDiff: false, error: (e as Error).message })
     }
   },
@@ -395,6 +396,7 @@ export const useStore = create<State>((set, get) => ({
         chatBusy: false
       }))
     } catch (e) {
+      Sentry.captureException(e, { extra: { scope: 'chat' } })
       set((s) => ({
         chatHistory: [...s.chatHistory, { role: 'assistant', content: `Sorry — ${(e as Error).message}` }],
         chatBusy: false

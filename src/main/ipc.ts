@@ -87,6 +87,7 @@ export function registerIpc(): void {
       const text = typeof res.content === 'string' ? res.content : JSON.stringify(res.content)
       return { ok: true, message: `Model responded: ${text.slice(0, 80)}` }
     } catch (e) {
+      Sentry.captureException(e, { extra: { source: 'settings:test' } })
       return { ok: false, message: (e as Error).message }
     }
   })

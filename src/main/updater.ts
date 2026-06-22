@@ -59,7 +59,11 @@ export function setupAutoUpdater(): void {
     }
   })
 
-  const check = () => autoUpdater.checkForUpdates().catch((err) => console.error('[updater]', err))
+  const check = () =>
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[updater]', err)
+      Sentry.captureException(err, { extra: { source: 'auto-updater-poll' } })
+    })
   check()
   setInterval(check, CHECK_INTERVAL_MS)
 }

@@ -17,10 +17,12 @@ export default function App() {
   const handleAgentEvent = useStore((s) => s.handleAgentEvent)
 
   useEffect(() => {
-    init().then(() => {
-      const s = useStore.getState().settings
-      if (s?.telemetry) initSentryRenderer()
-    })
+    init()
+      .then(() => {
+        const s = useStore.getState().settings
+        if (s?.telemetry) initSentryRenderer()
+      })
+      .catch((err) => console.error('[init] failed:', err))
     useGame.getState().touchDay()
     const off = window.glassbox.onAgentEvent(handleAgentEvent)
     return off
