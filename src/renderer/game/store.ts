@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { play, playCombo, setMuted, setPack } from './sfx'
 import { DEFAULT_EQUIPPED, cosmeticById, type CosmeticSlot } from './cosmetics'
+import { powerupById } from './powerups'
 
 export const COMBO_WINDOW_MS = 7000
 export const XP_PER_LEVEL = 400
@@ -67,7 +68,9 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   stylish: { id: 'stylish', label: 'Big Drip', emoji: '🛍️' },
   boss_slain: { id: 'boss_slain', label: 'Boss Slain', emoji: '⚔️' },
   code_smith: { id: 'code_smith', label: 'Code Smith (solved a challenge)', emoji: '⚒️' },
-  no_hints: { id: 'no_hints', label: 'Flawless Forge (no hints, 90+)', emoji: '🥇' }
+  no_hints: { id: 'no_hints', label: 'Flawless Forge (no hints, 90+)', emoji: '🥇' },
+  juiced: { id: 'juiced', label: 'Juiced Up (used a power-up)', emoji: '⚡' },
+  bug_catcher: { id: 'bug_catcher', label: 'Bug Catcher (caught a golden bug)', emoji: '🐞' }
 }
 
 interface AwardOpts {
@@ -100,6 +103,9 @@ interface GameState {
   // speedrun personal bests: key -> fastest time in ms (lower is better)
   bestTimes: Record<string, number>
 
+  // timed power-up boosts: powerup id -> expiry epoch ms
+  boosts: Record<string, number>
+
   // streak
   streak: number
   bestStreak: number
@@ -107,6 +113,7 @@ interface GameState {
   dailyClaimedDay: string
   // lifetime stats
   spins: number
+  bugsCaught: number
 
   level: () => number
   levelProgress: () => { inLevel: number; needed: number; pct: number }
@@ -128,6 +135,10 @@ interface GameState {
   touchDay: () => void
   claimDaily: () => number
   recordSpin: () => void
+  buyBoost: (id: string) => boolean
+  boostActive: (id: string) => boolean
+  comboWindowMs: () => number
+  recordBugCatch: () => void
   pushFx: (fx: Omit<Fx, 'id'>) => void
   popFx: (id: number) => void
   resetProfile: () => void
@@ -182,6 +193,8 @@ export const useGame = create<GameState>((set, get) => {
         lastActiveDay: s.lastActiveDay,
         dailyClaimedDay: s.dailyClaimedDay,
         spins: s.spins,
+        bugsCaught: s.bugsCaught,
+        boosts: s.boosts,
         owned: s.owned,
         equipped: s.equipped,
         srs: s.srs,
@@ -205,6 +218,8 @@ export const useGame = create<GameState>((set, get) => {
     rewarded: saved.rewarded ?? {},
     fx: [],
 
+    boosts: saved.boosts ?? {},
+
     owned: saved.owned ?? [],
     equipped: { ...DEFAULT_EQUIPPED, ...(saved.equipped ?? {}) },
     srs: saved.srs ?? {},
@@ -215,6 +230,7 @@ export const useGame = create<GameState>((set, get) => {
     lastActiveDay: saved.lastActiveDay ?? '',
     dailyClaimedDay: saved.dailyClaimedDay ?? '',
     spins: saved.spins ?? 0,
+    bugsCaught: saved.bugsCaught ?? 0,
 
     level: () => Math.floor(get().xp / XP_PER_LEVEL) + 1,
     levelProgress: () => {
@@ -226,14 +242,17 @@ export const useGame = create<GameState>((set, get) => {
     award: (base, opts = {}) => {
       const now = Date.now()
       const s = get()
-      const within = now - s.lastEarnAt < COMBO_WINDOW_MS
+      const within = now - s.lastEarnAt < s.comboWindowMs()
       const combo = within ? s.combo + 1 : 1
       const mult = comboMultiplier(combo)
 
-      // Variable reward: random crit (the slot-machine core).
+      // Variable reward: random crit (the slot-machine core). Lucky Charm
+      // triples the odds while it's running.
+      const lucky = s.boostActive('lucky')
       const roll = Math.random()
-      const critMult = roll < 0.04 ? 3 : roll < 0.2 ? 2 : 1
-      const total = Math.max(1, Math.round(base * mult * critMult))
+      const critMult = roll < (lucky ? 0.12 : 0.04) ? 3 : roll < (lucky ? 0.6 : 0.2) ? 2 : 1
+      const surgeMult = s.boostActive('surge') ? 2 : 1
+      const total = Math.max(1, Math.round(base * mult * critMult * surgeMult))
       const prevLevel = s.level()
 
       set({
@@ -424,14 +443,38 @@ export const useGame = create<GameState>((set, get) => {
       persist()
     },
 
+    // Buying an already-active boost stacks: the new duration extends the clock.
+    buyBoost: (id) => {
+      const p = powerupById(id)
+      if (!p) return false
+      if (!get().spend(p.price)) return false
+      const until = Math.max(Date.now(), get().boosts[id] ?? 0) + p.durationMs
+      set((s) => ({ boosts: { ...s.boosts, [id]: until } }))
+      get().unlock('juiced')
+      get().pushFx({ kind: 'toast', text: `${p.emoji} ${p.name} active!`, tone: 'good' })
+      if (get().sfxOn) play('chest')
+      persist()
+      return true
+    },
+
+    boostActive: (id) => (get().boosts[id] ?? 0) > Date.now(),
+
+    comboWindowMs: () => COMBO_WINDOW_MS * (get().boostActive('freeze') ? 3 : 1),
+
+    recordBugCatch: () => {
+      set((s) => ({ bugsCaught: s.bugsCaught + 1 }))
+      get().unlock('bug_catcher')
+      persist()
+    },
+
     pushFx: (fx) => set((s) => ({ fx: [...s.fx, { ...fx, id: fxId++ }] })),
     popFx: (id) => set((s) => ({ fx: s.fx.filter((f) => f.id !== id) })),
 
     resetProfile: () => {
       set({
         coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [], rewarded: {},
-        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0,
-        owned: [], equipped: { ...DEFAULT_EQUIPPED }, srs: {}, bestTimes: {}
+        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0, bugsCaught: 0,
+        boosts: {}, owned: [], equipped: { ...DEFAULT_EQUIPPED }, srs: {}, bestTimes: {}
       })
       setPack(DEFAULT_EQUIPPED.sound)
       persist()

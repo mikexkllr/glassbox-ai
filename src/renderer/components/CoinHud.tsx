@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useGame, XP_PER_LEVEL, COMBO_WINDOW_MS, rankTitle } from '../game/store'
+import { useGame, XP_PER_LEVEL, rankTitle } from '../game/store'
 import { coinGlyph } from '../game/cosmetics'
+import { POWERUPS } from '../game/powerups'
 
 function useTween(value: number) {
   const [display, setDisplay] = useState(value)
@@ -70,6 +71,9 @@ export default function CoinHud() {
         </div>
       )}
 
+      {/* active power-up boosts */}
+      <BoostPills />
+
       {/* live combo + draining timer */}
       {combo >= 2 && <ComboMeter combo={combo} lastEarnAt={lastEarnAt} />}
 
@@ -81,6 +85,46 @@ export default function CoinHud() {
         {sfxOn ? '🔊' : '🔇'}
       </button>
     </div>
+  )
+}
+
+/** Pulsing pills for each running power-up, with a live m:ss countdown. */
+function BoostPills() {
+  const boosts = useGame((s) => s.boosts)
+  const [now, setNow] = useState(Date.now())
+  const active = POWERUPS.filter((p) => (boosts[p.id] ?? 0) > now)
+
+  useEffect(() => {
+    if (active.length === 0) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active.length])
+
+  if (active.length === 0) return null
+  return (
+    <>
+      {active.map((p) => {
+        const left = Math.max(0, (boosts[p.id] ?? 0) - now)
+        const m = Math.floor(left / 60_000)
+        const s = Math.floor((left % 60_000) / 1000)
+        return (
+          <motion.div
+            key={p.id}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            title={`${p.name} — ${p.blurb}`}
+            className="flex items-center gap-1 rounded-full border border-glass-accent2/40 bg-glass-accent2/10 px-2 py-1 text-[11px] font-bold text-glass-accent2"
+          >
+            <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+              {p.emoji}
+            </motion.span>
+            <span className="font-mono tabular-nums">
+              {m}:{String(s).padStart(2, '0')}
+            </span>
+          </motion.div>
+        )
+      })}
+    </>
   )
 }
 
@@ -97,7 +141,9 @@ function ComboMeter({ combo, lastEarnAt }: { combo: number; lastEarnAt: number }
   useEffect(() => {
     let raf = 0
     const tick = () => {
-      const remaining = Math.max(0, 1 - (Date.now() - lastEarnAt) / COMBO_WINDOW_MS)
+      // comboWindowMs() stretches when Combo Freeze is running.
+      const windowMs = useGame.getState().comboWindowMs()
+      const remaining = Math.max(0, 1 - (Date.now() - lastEarnAt) / windowMs)
       setFrac(remaining)
       if (remaining > 0) raf = requestAnimationFrame(tick)
     }

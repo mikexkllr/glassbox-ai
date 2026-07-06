@@ -110,7 +110,9 @@ const QUESTS: Quest[] = [
   { id: 'chest1', label: 'Open a mastery chest', emoji: '🧰', goal: 1, reward: 60, progress: (g) => g.countPrefix('chest:') },
   { id: 'combo5', label: 'Hit a 5× combo', emoji: '🔥', goal: 5, reward: 50, progress: (g) => g.bestCombo },
   { id: 'spin5', label: 'Spin the slots 5×', emoji: '🎰', goal: 5, reward: 40, progress: (g) => g.spins },
-  { id: 'review5', label: 'Review 5 cards', emoji: '🔁', goal: 5, reward: 45, progress: (g) => Object.keys(g.srs).length }
+  { id: 'review5', label: 'Review 5 cards', emoji: '🔁', goal: 5, reward: 45, progress: (g) => Object.keys(g.srs).length },
+  { id: 'bug3', label: 'Catch 3 golden bugs', emoji: '🐞', goal: 3, reward: 60, progress: (g) => g.bugsCaught },
+  { id: 'boost1', label: 'Activate a power-up', emoji: '⚡', goal: 1, reward: 30, progress: (g) => (g.achievements.includes('juiced') ? 1 : 0) }
 ]
 
 function Quests() {
@@ -171,6 +173,7 @@ function Stats() {
     ['Quizzes aced', g.countPrefix('quizsolved:')],
     ['Chests opened', g.countPrefix('chest:')],
     ['Slot spins', g.spins],
+    ['Golden bugs caught', g.bugsCaught],
     ['Cosmetics owned', g.owned.length]
   ]
   return (

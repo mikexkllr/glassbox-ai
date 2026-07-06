@@ -17,6 +17,7 @@ import BugHunt from './BugHunt'
 import PRWrapped from './PRWrapped'
 import Mascot from './Mascot'
 import DataFlow from './DataFlow'
+import GoldenBug from './GoldenBug'
 import { cn } from '../lib/files'
 
 export default function Walkthrough() {
@@ -232,6 +233,7 @@ export default function Walkthrough() {
         />
       )}
       <Mascot />
+      <GoldenBug />
     </div>
   )
 }

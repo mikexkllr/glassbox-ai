@@ -12,6 +12,7 @@ import {
 } from '../game/cosmetics'
 import { tokenize, type Line } from '../lib/highlight'
 import { play, setPack } from '../game/sfx'
+import { POWERUPS, type Powerup } from '../game/powerups'
 import { cn } from '../lib/files'
 
 const SLOT_ORDER: CosmeticSlot[] = ['theme', 'confetti', 'coin', 'sound', 'trail']
@@ -24,10 +25,76 @@ export default function Shop() {
         Spend your coins on cosmetics — they change the real app, equip instantly, and stick around. Defaults
         are free. 🛍️
       </p>
+      <PowerupsRow />
       {SLOT_ORDER.map((slot) => (
         <ShopRow key={slot} slot={slot} />
       ))}
     </div>
+  )
+}
+
+/** Consumable timed boosts — buying again while active extends the clock. */
+function PowerupsRow() {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="text-[14px] font-bold text-white">⚡ Power-ups</span>
+        <span className="text-[11px] text-ink-600">Timed boosts that change the rules — stack to extend</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {POWERUPS.map((p) => (
+          <PowerupItem key={p.id} p={p} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PowerupItem({ p }: { p: Powerup }) {
+  const coins = useGame((s) => s.coins)
+  const until = useGame((s) => s.boosts[p.id] ?? 0)
+  const buyBoost = useGame((s) => s.buyBoost)
+  const left = until - Date.now()
+  const active = left > 0
+  const afford = coins >= p.price
+
+  return (
+    <motion.div
+      whileHover={{ y: -1 }}
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border p-3',
+        active ? 'border-glass-accent2/60 bg-glass-accent2/5' : 'border-ink-700 bg-ink-850/50'
+      )}
+    >
+      <div className="flex h-[40px] items-center justify-center rounded-md border border-ink-700 bg-ink-950 text-[26px]">
+        {p.emoji}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-[12.5px] font-semibold text-white">{p.name}</div>
+        <div className="text-[10.5px] leading-snug text-ink-600">{p.blurb}</div>
+      </div>
+      {active && (
+        <div className="text-center font-mono text-[11px] font-bold tabular-nums text-glass-accent2">
+          {Math.floor(left / 60_000)}:{String(Math.floor((left % 60_000) / 1000)).padStart(2, '0')} left
+        </div>
+      )}
+      <button
+        onClick={() => buyBoost(p.id)}
+        className={cn(
+          'no-drag rounded-lg py-1.5 text-[11.5px] font-bold',
+          afford
+            ? 'bg-gradient-to-r from-glass-warm to-glass-accent2 text-ink-950 hover:scale-[1.02]'
+            : 'cursor-not-allowed bg-ink-800 text-ink-600'
+        )}
+      >
+        {active ? `Extend · ${p.price}` : afford ? `Activate · ${p.price}` : `${p.price}`} 🪙
+      </button>
+    </motion.div>
   )
 }
 
