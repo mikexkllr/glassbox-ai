@@ -22,6 +22,23 @@ export async function getSettings(): Promise<Settings> {
   return result
 }
 
+// Sentry must be initialized before the Electron app 'ready' event fires, which
+// is earlier than the async settings load can resolve. Read the config file
+// synchronously (and prime the cache) so the telemetry consent flag is available
+// in time.
+export function getSettingsSync(): Settings {
+  if (cache) return cache
+  let result: Settings
+  try {
+    const raw = fs.readFileSync(configPath(), 'utf8')
+    result = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+  } catch {
+    result = { ...DEFAULT_SETTINGS }
+  }
+  cache = result
+  return result
+}
+
 export async function saveSettings(settings: Settings): Promise<Settings> {
   cache = { ...DEFAULT_SETTINGS, ...settings }
   await fs.promises.mkdir(path.dirname(configPath()), { recursive: true })

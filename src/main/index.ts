@@ -4,9 +4,16 @@ import { existsSync } from 'node:fs'
 import { registerIpc } from './ipc.js'
 import { setupAutoUpdater } from './updater.js'
 import { purgeWorktreeRoot, cleanupWorktrees } from './git/worktree.js'
-import { getSettings } from './store/settings.js'
+import { getSettingsSync } from './store/settings.js'
 import { SENTRY_DSN, SENTRY_RELEASE } from '@shared/sentry-config'
 import * as Sentry from '@sentry/electron/main'
+
+// Sentry's Electron SDK must be initialized before the app 'ready' event fires
+// so it can hook into the main process lifecycle. Read consent synchronously
+// since the async settings load wouldn't resolve in time.
+if (getSettingsSync().telemetry) {
+  Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
+}
 
 function appIcon(): string | undefined {
   const p = join(app.getAppPath(), 'build', 'icon.png')
@@ -57,15 +64,6 @@ app.whenReady().then(() => {
   createWindow()
   setupAutoUpdater()
   void purgeWorktreeRoot() // reclaim disk from worktrees orphaned by a prior crash/force-quit
-
-  // Init Sentry in the background — reads settings from disk but must not
-  // delay registerIpc() / createWindow() (that caused a race where the renderer
-  // called 'settings:get' before the handler was registered).
-  void getSettings().then((settings) => {
-    if (settings.telemetry) {
-      Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
-    }
-  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
