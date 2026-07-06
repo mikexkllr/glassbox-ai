@@ -65,7 +65,9 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   eagle_eye: { id: 'eagle_eye', label: 'Eagle Eye (cleared a hunt)', emoji: '🦅' },
   flawless: { id: 'flawless', label: 'Flawless Decode', emoji: '🎯' },
   stylish: { id: 'stylish', label: 'Big Drip', emoji: '🛍️' },
-  boss_slain: { id: 'boss_slain', label: 'Boss Slain', emoji: '⚔️' }
+  boss_slain: { id: 'boss_slain', label: 'Boss Slain', emoji: '⚔️' },
+  code_smith: { id: 'code_smith', label: 'Code Smith (solved a challenge)', emoji: '⚒️' },
+  no_hints: { id: 'no_hints', label: 'Flawless Forge (no hints, 90+)', emoji: '🥇' }
 }
 
 interface AwardOpts {

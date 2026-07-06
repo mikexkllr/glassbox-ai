@@ -72,6 +72,27 @@ const quizQuestion = z.object({
   explanation: z.string().describe('Why the correct answer is right (and others wrong).')
 })
 
+const codingChallenge = z.object({
+  id: z.string().describe('Short stable id, e.g. "ch1".'),
+  title: z.string().describe('Short, punchy exercise title (e.g. "Handle the empty diff").'),
+  brief: z
+    .string()
+    .describe('The task in plain language: what the reader should implement/complete and why it matters in THIS code. 2-4 sentences.'),
+  language: z.string().describe('Language of the snippet, e.g. "typescript", "python".'),
+  starterCode: z
+    .string()
+    .describe('A small, self-contained snippet (5-20 lines) adapted from this section, with ONE clearly marked gap the reader fills (e.g. "// TODO: your code here"). Keep every needed piece of context in the snippet.'),
+  referenceSolution: z
+    .string()
+    .describe('The completed snippet (or just the filled-in part) — what a correct answer looks like. Used to score the attempt and revealed afterwards.'),
+  hints: z
+    .array(z.string())
+    .min(1)
+    .max(3)
+    .describe('1-3 progressive hints, from a gentle nudge to nearly-the-answer.'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).describe('How hard the exercise is for someone who just read the section.')
+})
+
 const reviewFinding = z.object({
   id: z.string().describe('Short stable id, e.g. "f1".'),
   file: z.string().describe('Repo-relative file the issue is in.'),
@@ -113,6 +134,9 @@ export const sectionSchema = z.object({
     .array(quizQuestion)
     .default([])
     .describe('1-3 quiz questions that test real understanding of this section. Empty array is fine.'),
+  codingChallenge: codingChallenge
+    .optional()
+    .describe('ONE hands-on coding exercise built from this section\'s code — a small "your turn" gap-fill grounded in what the reader just learned. Omit only if the section has no code to exercise (pure docs/config).'),
   reviewFindings: z
     .array(reviewFinding)
     .default([])

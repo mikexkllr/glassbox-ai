@@ -9,6 +9,7 @@ import PokeableCode from './PokeableCode'
 import Quiz from './Quiz'
 import SelfCheck from './SelfCheck'
 import SectionVault from './MiniGame'
+import CodingChallenge from './CodingChallenge'
 import LootChest from './LootChest'
 import AgentStatus from './AgentStatus'
 import LessonMode from './LessonMode'
@@ -35,6 +36,7 @@ type Beat =
   | { kind: 'trace'; key: string; plan: SectionPlan; section: WalkthroughSection; value: TraceableValue }
   | { kind: 'selfcheck'; key: string; plan: SectionPlan; section: WalkthroughSection }
   | { kind: 'quiz'; key: string; plan: SectionPlan; section: WalkthroughSection; q: WalkthroughSection['quiz'][number]; qi: number }
+  | { kind: 'challenge'; key: string; plan: SectionPlan; section: WalkthroughSection }
   | { kind: 'vault'; key: string; plan: SectionPlan; section: WalkthroughSection }
   | { kind: 'done'; key: string; plan: SectionPlan; section: WalkthroughSection; sIdx: number }
   | { kind: 'finale'; key: string }
@@ -74,6 +76,8 @@ function buildBeats(
     ;(section.quiz ?? []).forEach((q, qi) =>
       beats.push({ kind: 'quiz', key: `quiz:${plan.id}:${q.id}`, plan, section, q, qi })
     )
+    if (section.codingChallenge)
+      beats.push({ kind: 'challenge', key: `challenge:${plan.id}`, plan, section })
     if (vaultPlayable(section)) beats.push({ kind: 'vault', key: `vault:${plan.id}`, plan, section })
     beats.push({ kind: 'done', key: `done:${plan.id}`, plan, section, sIdx })
   })
@@ -101,6 +105,8 @@ function describeBeat(beat: Beat): string {
       return `Section "${beat.section.title}" › the self-check question.`
     case 'quiz':
       return `Section "${beat.section.title}" › a quiz question: ${beat.q.question}`
+    case 'challenge':
+      return `Section "${beat.section.title}" › the coding challenge: ${beat.section.codingChallenge?.brief ?? ''}`
     case 'vault':
       return `Section "${beat.section.title}" › the section vault mini-game.`
     case 'done':
@@ -331,6 +337,8 @@ function BeatView({ beat, onCashout, onHunt }: { beat: Beat; onCashout: () => vo
       return <SelfCheck check={beat.section.selfCheck!} sectionId={beat.plan.id} />
     case 'quiz':
       return <Quiz q={beat.q} sectionId={beat.plan.id} index={beat.qi} />
+    case 'challenge':
+      return <ChallengeBeat plan={beat.plan} section={beat.section} />
     case 'vault':
       return <SectionVault section={beat.section} sectionId={beat.plan.id} />
     case 'done':
@@ -439,6 +447,7 @@ function IntroBeat({ plan, section, sIdx }: { plan: SectionPlan; section: Walkth
         {section.chunks.length > 0 && <Pill>{section.chunks.length} code blocks</Pill>}
         {(section.insights?.length ?? 0) > 0 && <Pill>💡 {section.insights.length} insights</Pill>}
         {(section.quiz?.length ?? 0) > 0 && <Pill>🧠 {section.quiz.length} quizzes</Pill>}
+        {section.codingChallenge && <Pill>⚒️ coding challenge</Pill>}
         {(section.traceableValues?.length ?? 0) > 0 && <Pill>🎬 {section.traceableValues.length} traces</Pill>}
       </div>
     </div>
@@ -584,6 +593,19 @@ function InsightBeat({ plan, section, text, i }: { plan: SectionPlan; section: W
         revealKey={`insight:${plan.id}:${i}`}
         lockKey={`insightlock:${plan.id}:${i}`}
       />
+    </div>
+  )
+}
+
+/** The hands-on beat: complete this chapter's starter snippet for coins. */
+function ChallengeBeat({ plan, section }: { plan: SectionPlan; section: WalkthroughSection }) {
+  return (
+    <div>
+      <Eyebrow>⚒️ Your turn to code</Eyebrow>
+      <p className="mb-3 text-[14px] text-gray-300">
+        You've read the code — now write some. Skippable, but the coins (and the bragging rights) aren't.
+      </p>
+      <CodingChallenge challenge={section.codingChallenge!} sectionId={plan.id} />
     </div>
   )
 }

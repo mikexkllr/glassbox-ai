@@ -10,6 +10,7 @@ import WhyThis from './WhyThis'
 import AgentStatus from './AgentStatus'
 import TrailChip from './InvestigationTrail'
 import Quiz from './Quiz'
+import CodingChallenge from './CodingChallenge'
 import Insights from './Insights'
 import LootChest from './LootChest'
 import LessonMode from './LessonMode'
@@ -141,6 +142,10 @@ export default function SectionCard({ plan, index, presentation }: { plan: Secti
                         <Quiz key={q.id} q={q} sectionId={plan.id} index={qi} />
                       ))}
                     </div>
+                  )}
+
+                  {section.codingChallenge && (
+                    <CodingChallenge challenge={section.codingChallenge} sectionId={plan.id} />
                   )}
 
                   <SectionVault section={section} sectionId={plan.id} />

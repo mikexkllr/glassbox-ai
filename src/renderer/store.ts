@@ -20,6 +20,12 @@ export interface SelfCheckResult {
   score: ScoreResult
 }
 
+export interface ChallengeResult {
+  code: string
+  score: ScoreResult
+  hintsUsed: number
+}
+
 export type Depth = 'gist' | 'deep'
 export type ViewMode = 'guided' | 'presentation' | 'scroll'
 
@@ -69,6 +75,7 @@ interface State {
   activeTrace: ActiveTrace | null
   selfCheckRevealed: string[] // chunk/section ids revealed
   selfCheckResults: Record<string, SelfCheckResult> // persisted per section across nav
+  challengeResults: Record<string, ChallengeResult> // coding-challenge attempts per section
   openSections: Record<string, boolean>
 
   // live agent telemetry, keyed by scope (section id, "overview", "chat", ...)
@@ -111,6 +118,7 @@ interface State {
   ensureSection: (plan: SectionPlan) => Promise<void>
   markWalked: (id: string) => void
   setSelfCheckResult: (sectionId: string, result: SelfCheckResult) => void
+  setChallengeResult: (sectionId: string, result: ChallengeResult) => void
   setSectionOpen: (id: string, open: boolean) => void
   setViewMode: (m: ViewMode) => void
   setSlide: (n: number) => void
@@ -177,7 +185,8 @@ export const useStore = create<State>((set, get) => {
       chatHistory: [],
       openSections: {},
       slideIndex: 0,
-      selfCheckResults: {}
+      selfCheckResults: {},
+      challengeResults: {}
     })
     if (!get().overview) {
       await get().ensureOverview()
@@ -212,6 +221,7 @@ export const useStore = create<State>((set, get) => {
   activeTrace: null,
   selfCheckRevealed: [],
   selfCheckResults: {},
+  challengeResults: {},
   openSections: {},
 
   live: {},
@@ -328,13 +338,13 @@ export const useStore = create<State>((set, get) => {
   },
 
   backToOnboarding() {
-    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, selfCheckResults: {} })
+    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
   },
 
   // Discard the cached AI walkthrough for the current branches and re-run it.
   async regenerate() {
     if (!get().diff) return
-    set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {} })
+    set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
     persist(get) // overwrite the cached session so a reopen also regenerates
     await get().ensureOverview()
   },
@@ -390,6 +400,10 @@ export const useStore = create<State>((set, get) => {
 
   setSelfCheckResult(sectionId, result) {
     set((s) => ({ selfCheckResults: { ...s.selfCheckResults, [sectionId]: result } }))
+  },
+
+  setChallengeResult(sectionId, result) {
+    set((s) => ({ challengeResults: { ...s.challengeResults, [sectionId]: result } }))
   },
 
   setSectionOpen(id, open) {

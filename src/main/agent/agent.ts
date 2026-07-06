@@ -179,6 +179,7 @@ There is no diff — this journey explores the EXISTING code. Investigate the re
 - optionally, a gentle "guess what this does first?" self-check
 - 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
 - 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
+- codingChallenge: ONE small hands-on exercise built from this section's code — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that exercises the section's key idea, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns. Only flag real problems — if the code is clean, return an empty array.
 
 Use the current line numbers of each file. Reuse the section id "${plan.id}".`
@@ -203,6 +204,7 @@ Investigate the real repository with the repo_* tools to ground every explanatio
 - optionally, a gentle "guess what this does first?" self-check
 - 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
 - 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
+- codingChallenge: ONE small hands-on exercise built from this section's change — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that makes the reader re-implement the key idea of the change, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns (e.g. non-constant-time comparisons, unhandled empty/null input, naive parsing, missing validation). For each: the file + exact line range, a severity, a short title, a VAGUE hint (points at the area to look, without giving away the answer), a deep explanation of why it's a problem, and an optional fix suggestion. Only flag real problems — if the code is clean, return an empty array. Do NOT duplicate the same point as both an insight and a finding.
 
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`

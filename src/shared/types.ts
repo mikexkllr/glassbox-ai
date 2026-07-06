@@ -276,6 +276,27 @@ export interface FindingAssessment {
   severity: FindingSeverity
 }
 
+/**
+ * A hands-on "your turn" exercise built from a chapter's code: the reader
+ * completes starter code in a tiny editor and the AI scores their attempt
+ * against the reference solution. The chapter's coding mini-game.
+ */
+export interface CodingChallenge {
+  id: string
+  title: string
+  /** The task in plain language: what to implement/complete and why it matters here. */
+  brief: string
+  /** Language of the snippet, e.g. "typescript" — display only. */
+  language: string
+  /** Starter code containing a clearly marked gap (e.g. a TODO) the reader fills in. */
+  starterCode: string
+  /** The reference solution — used to score the attempt, revealed afterwards. */
+  referenceSolution: string
+  /** 1-3 progressive hints; each one the reader takes shaves the reward. */
+  hints: string[]
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
 export interface QuizQuestion {
   id: string
   question: string
@@ -317,6 +338,8 @@ export interface WalkthroughSection {
   insights: string[]
   /** Quiz questions to test understanding (and earn coins). */
   quiz: QuizQuestion[]
+  /** A hands-on coding exercise built from this section's code. Optional. */
+  codingChallenge?: CodingChallenge
   /** Potential issues a reviewer might flag — the quarry for the Bug Hunt. */
   reviewFindings: ReviewFinding[]
   /** Files the agent actually read/grepped to build this section. */
