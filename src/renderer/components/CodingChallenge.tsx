@@ -63,12 +63,17 @@ export default function CodingChallenge({ challenge, sectionId }: { challenge: C
     try {
       const question = `Coding challenge: ${challenge.brief}\n\nStarter code (${challenge.language}):\n${challenge.starterCode}\n\nJudge whether the learner's completed code correctly fills the gap. Correct logic matters; style and naming do not. Equivalent alternative implementations deserve full marks.`
       res = await window.glassbox.scoreAnswer(diff, question, challenge.referenceSolution, code)
-      const bonus = Math.max(0, Math.round((res.score / 100) * MAX_BONUS) - hintsUsed * HINT_COST)
+      // Only the FIRST submission for this section pays out — otherwise a retry
+      // could re-earn the score-scaled bonus indefinitely on already-correct code.
+      const firstAttempt = !useGame.getState().rewarded[`challenge:${sectionId}`]
       rewardOnce(`challenge:${sectionId}`, 12, { reason: 'took the challenge ⚒️' })
-      if (bonus > 0)
-        award(bonus, { x: e.clientX, y: e.clientY, reason: `${res.score}/100 forged!`, sound: 'jackpot', confetti: res.score >= 80 })
-      if (res.score >= 70) unlock('code_smith')
-      if (res.score >= 90 && hintsUsed === 0) unlock('no_hints')
+      if (firstAttempt) {
+        const bonus = Math.max(0, Math.round((res.score / 100) * MAX_BONUS) - hintsUsed * HINT_COST)
+        if (bonus > 0)
+          award(bonus, { x: e.clientX, y: e.clientY, reason: `${res.score}/100 forged!`, sound: 'jackpot', confetti: res.score >= 80 })
+        if (res.score >= 70) unlock('code_smith')
+        if (res.score >= 90 && hintsUsed === 0) unlock('no_hints')
+      }
       if (res.score < 40) breakCombo()
     } catch {
       res = { score: 50, verdict: 'Nice attempt!', good: 'You gave it a real shot.', missing: 'Could not reach the model to score it.' }
