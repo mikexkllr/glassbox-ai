@@ -13,12 +13,18 @@ export default function Onboarding() {
   const busy = useStore((s) => s.busyDiff)
   const error = useStore((s) => s.error)
   const settings = useStore((s) => s.settings)
+  const journeyMode = useStore((s) => s.journeyMode)
+  const topic = useStore((s) => s.topic)
 
   const pickRepo = useStore((s) => s.pickRepo)
   const setBase = useStore((s) => s.setBase)
   const setFeature = useStore((s) => s.setFeature)
-  const start = useStore((s) => s.startWalkthrough)
+  const setJourneyMode = useStore((s) => s.setJourneyMode)
+  const setTopic = useStore((s) => s.setTopic)
+  const startPr = useStore((s) => s.startWalkthrough)
+  const startTopic = useStore((s) => s.startTopicJourney)
   const openSettings = useStore((s) => s.openSettings)
+  const start = journeyMode === 'topic' ? startTopic : startPr
 
   const coins = useGame((s) => s.coins)
   const xp = useGame((s) => s.xp)
@@ -27,7 +33,7 @@ export default function Onboarding() {
   const level = Math.floor(xp / 400) + 1
 
   const repoName = repoPath?.split('/').pop()
-  const ready = !!repoPath && !!base && !!feature && !busy
+  const ready = !!repoPath && !busy && (journeyMode === 'topic' ? topic.trim().length > 0 : !!base && !!feature)
   const returning = xp > 0 || coins > 0
 
   return (
@@ -110,27 +116,82 @@ export default function Onboarding() {
               </button>
             </Step>
 
-            {branches.length > 0 && (
+            {repoPath && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                <Step n={2} label="pick the matchup ⚔️">
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                    <select value={base} onChange={(e) => setBase(e.target.value)} className="select no-drag">
-                      {branches.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-[16px]">🆚</span>
-                    <select value={feature} onChange={(e) => setFeature(e.target.value)} className="select no-drag">
-                      {branches.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
+                <Step n={2} label="pick your quest 🧭">
+                  <div className="mb-2 flex items-center gap-1 rounded-full border border-ink-700 bg-ink-900/60 p-0.5">
+                    {(
+                      [
+                        { m: 'pr' as const, label: '⚔️ compare branches' },
+                        { m: 'topic' as const, label: '❓ ask a question' }
+                      ]
+                    ).map(({ m, label }) => (
+                      <button
+                        key={m}
+                        onClick={() => setJourneyMode(m)}
+                        className={cn(
+                          'no-drag flex-1 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors',
+                          journeyMode === m ? 'bg-glass-accent text-ink-950' : 'text-gray-300 hover:text-white'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                  <p className="mt-1 text-[11px] text-ink-600">base (what you got) → feature (the new sauce)</p>
+
+                  {journeyMode === 'pr' ? (
+                    branches.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                          <select value={base} onChange={(e) => setBase(e.target.value)} className="select no-drag">
+                            {branches.map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-[16px]">🆚</span>
+                          <select value={feature} onChange={(e) => setFeature(e.target.value)} className="select no-drag">
+                            {branches.map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <p className="mt-1 text-[11px] text-ink-600">base (what you got) → feature (the new sauce)</p>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <input
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && ready) {
+                            if (sfxOn) play('levelup')
+                            start()
+                          }
+                        }}
+                        placeholder="how does authentication work? where do requests get validated? …"
+                        className="no-drag w-full rounded-xl border border-ink-600 bg-ink-900/60 px-4 py-3 text-[14px] text-gray-100 placeholder:text-ink-600 focus:border-glass-accent/60 focus:outline-none"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {TOPIC_IDEAS.map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setTopic(t)}
+                            className="no-drag rounded-full border border-ink-700 bg-ink-900/50 px-2.5 py-1 text-[11px] text-gray-300 transition-colors hover:border-glass-accent2/50 hover:text-white"
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-ink-600">
+                        we'll build a guided journey through the code that answers it 🧠
+                      </p>
+                    </>
+                  )}
                 </Step>
               </motion.div>
             )}
@@ -161,7 +222,17 @@ export default function Onboarding() {
                   </span>
                 )}
                 <span className="relative">
-                  {busy ? 'cooking the diff… 🍳' : ready ? "let's gooo 🚀" : 'pick a repo first 👆'}
+                  {busy
+                    ? journeyMode === 'topic'
+                      ? 'scouting the code… 🔭'
+                      : 'cooking the diff… 🍳'
+                    : ready
+                      ? "let's gooo 🚀"
+                      : !repoPath
+                        ? 'pick a repo first 👆'
+                        : journeyMode === 'topic'
+                          ? 'type a question 👆'
+                          : 'pick the branches 👆'}
                 </span>
               </motion.button>
               <button
@@ -234,6 +305,13 @@ function Stat({ emoji, label, sub }: { emoji: string; label: string; sub: string
     </div>
   )
 }
+
+const TOPIC_IDEAS = [
+  'how does auth work?',
+  'what happens on startup?',
+  'how is state managed?',
+  'where does data get persisted?'
+]
 
 const PERKS = [
   { emoji: '🪙', text: 'earn coins' },

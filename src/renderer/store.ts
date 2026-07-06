@@ -48,6 +48,10 @@ interface State {
   feature: string
   busyDiff: boolean
 
+  // how the next journey starts: compare two branches, or explore a topic/question
+  journeyMode: 'pr' | 'topic'
+  topic: string
+
   // settings
   settings: Settings | null
 
@@ -95,7 +99,10 @@ interface State {
   pickRepo: () => Promise<void>
   setBase: (b: string) => void
   setFeature: (f: string) => void
+  setJourneyMode: (m: 'pr' | 'topic') => void
+  setTopic: (t: string) => void
   startWalkthrough: () => Promise<void>
+  startTopicJourney: () => Promise<void>
   backToOnboarding: () => void
   regenerate: () => Promise<void>
   resetAll: () => void
@@ -123,8 +130,11 @@ interface State {
 function sessionKeyOf(diff: DiffSummary): string {
   // Bind the cached walkthrough to the exact endpoint commits, not just the
   // (movable) branch names — so moving or switching a branch yields a fresh
-  // walkthrough instead of re-serving a stale or cross-loaded one.
-  return `${diff.repoPath}::${diff.base}::${diff.feature}::${diff.baseSha}::${diff.featureSha}`
+  // walkthrough instead of re-serving a stale or cross-loaded one. Topic
+  // journeys additionally key on the question, so different questions about
+  // the same commit get their own walkthroughs.
+  const base = `${diff.repoPath}::${diff.base}::${diff.feature}::${diff.baseSha}::${diff.featureSha}`
+  return diff.mode === 'topic' ? `${base}::topic::${diff.topic ?? ''}` : base
 }
 
 function persist(get: () => State) {
@@ -144,7 +154,37 @@ function persist(get: () => State) {
   })
 }
 
-export const useStore = create<State>((set, get) => ({
+export const useStore = create<State>((set, get) => {
+  // Shared journey entry: restore any cached session for this exact diff/topic
+  // and switch to the walkthrough screen.
+  const enterJourney = async (diff: DiffSummary) => {
+    const key = sessionKeyOf(diff)
+    const saved = await window.glassbox.loadSession(key)
+    set({
+      diff,
+      screen: 'walkthrough',
+      busyDiff: false,
+      // Keep the endpoint refs in sync with the diff — PokeableCode renders
+      // files at `feature` and persist() records base/feature, and a topic
+      // journey pins both to the repo's current branch rather than the selects.
+      base: diff.base,
+      feature: diff.feature,
+      overview: saved?.overview ?? null,
+      sections: saved?.sections ?? {},
+      walked: saved?.walked ?? [],
+      findings: saved?.findings ?? [],
+      live: {},
+      chatHistory: [],
+      openSections: {},
+      slideIndex: 0,
+      selfCheckResults: {}
+    })
+    if (!get().overview) {
+      await get().ensureOverview()
+    }
+  }
+
+  return {
   screen: 'onboarding',
   settingsOpen: false,
   chatOpen: false,
@@ -154,6 +194,9 @@ export const useStore = create<State>((set, get) => ({
   base: '',
   feature: '',
   busyDiff: false,
+
+  journeyMode: 'pr',
+  topic: '',
 
   settings: null,
 
@@ -223,6 +266,12 @@ export const useStore = create<State>((set, get) => ({
   setFeature(f) {
     set({ feature: f })
   },
+  setJourneyMode(m) {
+    set({ journeyMode: m, error: null })
+  },
+  setTopic(t) {
+    set({ topic: t })
+  },
 
   async startWalkthrough() {
     const { repoPath, base, feature } = get()
@@ -238,28 +287,22 @@ export const useStore = create<State>((set, get) => ({
         set({ busyDiff: false, error: `No changes between ${base} and ${feature}.` })
         return
       }
-      // Try restoring a saved session (keyed by the exact commits in this diff).
-      const key = sessionKeyOf(diff)
-      const saved = await window.glassbox.loadSession(key)
-      set({
-        diff,
-        screen: 'walkthrough',
-        busyDiff: false,
-        overview: saved?.overview ?? null,
-        sections: saved?.sections ?? {},
-        walked: saved?.walked ?? [],
-        findings: saved?.findings ?? [],
-        live: {},
-        chatHistory: [],
-        openSections: {},
-        slideIndex: 0,
-        selfCheckResults: {}
-      })
-      if (!get().overview) {
-        await get().ensureOverview()
-      }
+      await enterJourney(diff)
     } catch (e) {
       Sentry.captureException(e, { extra: { scope: 'startWalkthrough' } })
+      set({ busyDiff: false, error: (e as Error).message })
+    }
+  },
+
+  async startTopicJourney() {
+    const { repoPath, topic } = get()
+    if (!repoPath || !topic.trim()) return
+    set({ busyDiff: true, error: null })
+    try {
+      const diff = await window.glassbox.computeTopicSnapshot(repoPath, topic)
+      await enterJourney(diff)
+    } catch (e) {
+      Sentry.captureException(e, { extra: { scope: 'startTopicJourney' } })
       set({ busyDiff: false, error: (e as Error).message })
     }
   },
@@ -426,4 +469,5 @@ export const useStore = create<State>((set, get) => ({
       return { live: { ...s.live, [e.scope]: next } }
     })
   }
-}))
+  }
+})

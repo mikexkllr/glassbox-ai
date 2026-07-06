@@ -222,7 +222,9 @@ export function buildInvestigation(ctx: InvestigationContext): Investigation {
     }
   )
 
-  return { tools: [readFile, grep, globTool, ls, diffTool], trail }
+  // Topic journeys have no diff — offering repo_diff would only confuse the agent.
+  const tools = ctx.diff.files.length > 0 ? [readFile, grep, globTool, ls, diffTool] : [readFile, grep, globTool, ls]
+  return { tools, trail }
 }
 
 /** A submit tool: the agent finishes a unit of work by *calling* this with structured args. */

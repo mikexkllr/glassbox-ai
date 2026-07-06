@@ -38,10 +38,22 @@ export interface DiffFile {
   hunks: DiffHunk[]
 }
 
+/**
+ * How a journey was started: 'pr' walks a branch-vs-branch diff; 'topic' walks
+ * the codebase at one commit, guided by a question ("how does auth work?").
+ * Topic journeys reuse the DiffSummary shape with an empty file list so the
+ * whole pipeline (IPC, caching, worktrees, sections) works unchanged.
+ */
+export type JourneyMode = 'pr' | 'topic'
+
 export interface DiffSummary {
   repoPath: string
   base: string
   feature: string
+  /** Defaults to 'pr' when absent (older cached sessions). */
+  mode?: JourneyMode
+  /** The question/topic driving a topic journey. */
+  topic?: string
   // Resolved commit SHAs of the two endpoints, captured when the diff was
   // computed. Used to key the walkthrough cache so a moved/different branch
   // regenerates instead of serving a stale or cross-loaded walkthrough.
@@ -169,7 +181,8 @@ export interface ChunkStory {
   gotcha?: string
 }
 
-export type ChunkChangeKind = 'added' | 'modified' | 'removed'
+/** 'context' = not part of a diff — existing code explored in a topic journey. */
+export type ChunkChangeKind = 'added' | 'modified' | 'removed' | 'context'
 
 export interface WalkChunk extends CodeAnchor {
   id: string
@@ -384,6 +397,8 @@ export interface GlassboxApi {
   pickRepo: () => Promise<string | null>
   listBranches: (repoPath: string) => Promise<{ branches: string[]; current: string; defaultBase: string }>
   computeDiff: (repoPath: string, base: string, feature: string) => Promise<DiffSummary>
+  /** Snapshot of the repo at its current branch, seeded with a question/topic (topic journey). */
+  computeTopicSnapshot: (repoPath: string, topic: string) => Promise<DiffSummary>
   readFileContent: (repoPath: string, ref: string, file: string) => Promise<string>
 
   getSettings: () => Promise<Settings>

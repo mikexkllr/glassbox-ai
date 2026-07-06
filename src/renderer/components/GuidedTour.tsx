@@ -371,12 +371,18 @@ function OverviewBeat() {
       )}
       {diff && (
         <div className="mt-5 flex flex-wrap items-center gap-4 text-[12px] text-ink-600">
-          <span>{diff.files.length} files</span>
-          <span className="text-glass-add">+{diff.totalAdditions}</span>
-          <span className="text-glass-del">−{diff.totalDeletions}</span>
-          <span className="font-mono">
-            {diff.base} → {diff.feature}
-          </span>
+          {diff.mode === 'topic' ? (
+            <span className="font-mono">🧭 “{diff.topic}” @ {diff.feature}</span>
+          ) : (
+            <>
+              <span>{diff.files.length} files</span>
+              <span className="text-glass-add">+{diff.totalAdditions}</span>
+              <span className="text-glass-del">−{diff.totalDeletions}</span>
+              <span className="font-mono">
+                {diff.base} → {diff.feature}
+              </span>
+            </>
+          )}
         </div>
       )}
       <p className="mt-6 text-[13px] text-ink-600">
@@ -446,7 +452,9 @@ function Pill({ children }: { children: React.ReactNode }) {
 const CHANGE_META: Record<string, { label: string; cls: string }> = {
   added: { label: 'ADDED', cls: 'bg-glass-add/15 text-glass-add' },
   modified: { label: 'CHANGED', cls: 'bg-glass-accent/15 text-glass-accent' },
-  removed: { label: 'REMOVED', cls: 'bg-glass-del/15 text-glass-del' }
+  removed: { label: 'REMOVED', cls: 'bg-glass-del/15 text-glass-del' },
+  // topic journeys: existing code being explored, not a change
+  context: { label: 'EXPLORE', cls: 'bg-glass-accent2/15 text-glass-accent2' }
 }
 
 /** Active recall: see the code, take a guess, THEN reveal what it does. */
@@ -710,6 +718,7 @@ function DoneBeat({ plan, section, sIdx }: { plan: SectionPlan; section: Walkthr
 }
 
 function FinaleBeat({ onCashout }: { onCashout: () => void }) {
+  const topicMode = useStore((s) => s.diff?.mode === 'topic')
   return (
     <div className="py-6 text-center">
       <motion.div
@@ -720,17 +729,22 @@ function FinaleBeat({ onCashout }: { onCashout: () => void }) {
       >
         🔮
       </motion.div>
-      <h1 className="mt-3 text-[26px] font-black text-white">You understood the whole change.</h1>
+      <h1 className="mt-3 text-[26px] font-black text-white">
+        {topicMode ? 'You answered your own question.' : 'You understood the whole change.'}
+      </h1>
       <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-ink-600">
-        Every block, every value, every gotcha — in your head, not just skimmed. Now cash out the coins you earned to mint
-        your verdict.
+        {topicMode
+          ? 'Every block, every value, every gotcha — in your head, not just skimmed. Ask another question whenever you want.'
+          : 'Every block, every value, every gotcha — in your head, not just skimmed. Now cash out the coins you earned to mint your verdict.'}
       </p>
-      <button
-        onClick={onCashout}
-        className="no-drag mt-6 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-glass-warm to-glass-accent2 px-7 py-3.5 text-[15px] font-black text-ink-950 transition-transform hover:scale-[1.03]"
-      >
-        🎰 Cash out your verdict
-      </button>
+      {!topicMode && (
+        <button
+          onClick={onCashout}
+          className="no-drag mt-6 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-glass-warm to-glass-accent2 px-7 py-3.5 text-[15px] font-black text-ink-950 transition-transform hover:scale-[1.03]"
+        >
+          🎰 Cash out your verdict
+        </button>
+      )}
     </div>
   )
 }

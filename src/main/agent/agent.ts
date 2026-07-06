@@ -42,6 +42,18 @@ You have already been given the diff. Genuinely INVESTIGATE the real repository 
 
 Write in plain, warm language a busy developer can absorb fast. Be concrete and specific to THIS code. Avoid restating the diff line-by-line — explain what it means and why.`
 
+const TOPIC_MISSION = `You are Glassbox — a patient tour guide who helps a human *understand a codebase* with as little effort as possible.
+
+The reader has asked a question (or named a topic) about this repository. There is no diff — your job is to build a guided journey through the EXISTING code that answers their question: where the relevant code lives, how it works, and how the pieces connect.
+
+Genuinely INVESTIGATE the real repository using the repo_* tools — list directories, grep for the relevant concepts, follow imports, read type definitions, open tests, find call sites — so your explanations are real, not guessed. Prefer reading the actual code over speculating. Stay within your file budget; investigate what matters most first.
+
+Write in plain, warm language a busy developer can absorb fast. Be concrete and specific to THIS code. Anchor every explanation to real files and line numbers so the reader can see the code you are describing.`
+
+function missionFor(diff: DiffSummary): string {
+  return diff.mode === 'topic' ? TOPIC_MISSION : MISSION
+}
+
 function extractText(messages: BaseMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
@@ -61,8 +73,8 @@ function extractText(messages: BaseMessage[]): string {
   return typeof last?.content === 'string' ? last.content : ''
 }
 
-async function makeAgent(model: any, tools: any[]) {
-  return await createDeepAgent({ model, tools, systemPrompt: MISSION })
+async function makeAgent(model: any, tools: any[], mission: string = MISSION) {
+  return await createDeepAgent({ model, tools, systemPrompt: mission })
 }
 
 // ---------------------------------------------------------------------------
@@ -74,8 +86,9 @@ export async function generateOverview(
   emit: (e: AgentEvent) => void
 ): Promise<Overview> {
   const scope = 'overview'
+  const topicMode = diff.mode === 'topic'
   const settings = await getSettings()
-  emit({ kind: 'status', scope, message: 'Reading the whole change…' })
+  emit({ kind: 'status', scope, message: topicMode ? 'Scouting the codebase…' : 'Reading the whole change…' })
 
   const model = await makeModel(settings)
   emit({ kind: 'status', scope, message: 'Checking out the feature branch in an isolated worktree…' })
@@ -92,10 +105,21 @@ export async function generateOverview(
     }
   )
 
-  const agent = await makeAgent(model, [...tools, submit])
-  const prompt = `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.`
+  const agent = await makeAgent(model, [...tools, submit], missionFor(diff))
+  const prompt = topicMode
+    ? `The reader wants a guided journey through this repository, driven by their question/topic:
 
-  emit({ kind: 'status', scope, message: 'Forming the big picture…' })
+"${diff.topic}"
+
+Explore the repository with the repo_* tools (start with repo_ls and repo_grep for the relevant concepts, then read the key files) until you can answer the question and know where the relevant code lives. Then call submit_overview:
+- title: a concise title for the journey (not the question verbatim)
+- whatGist/whatDeep: a direct plain-language answer to the question, grounded in what you found
+- why: why the code is designed this way / what problem it solves
+- highlights: 3-6 bullet takeaways
+- sections: a logical top-down learning path through the relevant code (aim for 2-7 sections, each focused on one part of the answer — e.g. entry point, core logic, storage, edge cases). Each section needs an id, title, one-line teaser, and the repo-relative files it covers. Only include files that actually exist and matter to the question.`
+    : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.`
+
+  emit({ kind: 'status', scope, message: topicMode ? 'Charting the journey…' : 'Forming the big picture…' })
   const res: any = await agent.invoke(
     { messages: [{ role: 'user', content: prompt }] },
     { recursionLimit: RECURSION_LIMIT }
@@ -136,10 +160,31 @@ export async function generateSection(
     }
   )
 
-  const agent = await makeAgent(model, [...tools, submit])
+  const agent = await makeAgent(model, [...tools, submit], missionFor(diff))
 
-  const fileDiffs = plan.files.map((f) => fileDiffText(diff, f)).join('\n\n')
-  const prompt = `Build the walkthrough for ONE section.
+  const topicPrompt = `Build the walkthrough for ONE section of a topic journey through this repository.
+
+The reader's question/topic: "${diff.topic}"
+
+Section id: ${plan.id}
+Section title: ${plan.title}
+What it covers: ${plan.teaser}
+Files: ${plan.files.join(', ')}
+
+There is no diff — this journey explores the EXISTING code. Investigate the real repository with the repo_* tools to ground every explanation (read the listed files in full, follow imports and types, find call sites, peek at tests). Then call submit_walkthrough_section with:
+- a one-sentence gist and a fuller plain-language summary of what this section teaches about the topic
+- the notable code chunks (the blocks a reader must see to understand this part of the answer). For EACH chunk: set changeKind to "context", give a punchy one-line "gist" of what this block does, and a story (what it does / how it fits into the answer / what calls it, plus an optional "gotcha")
+- inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
+- zero or more traceable values showing how a value flows through this code, with concrete example values where helpful
+- optionally, a gentle "guess what this does first?" self-check
+- 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
+- 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
+- reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns. Only flag real problems — if the code is clean, return an empty array.
+
+Use the current line numbers of each file. Reuse the section id "${plan.id}".`
+
+  const fileDiffs = diff.mode === 'topic' ? '' : plan.files.map((f) => fileDiffText(diff, f)).join('\n\n')
+  const prPrompt = `Build the walkthrough for ONE section.
 
 Section id: ${plan.id}
 Section title: ${plan.title}
@@ -162,6 +207,7 @@ Investigate the real repository with the repo_* tools to ground every explanatio
 
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`
 
+  const prompt = diff.mode === 'topic' ? topicPrompt : prPrompt
   const res: any = await agent.invoke(
     { messages: [{ role: 'user', content: prompt }] },
     { recursionLimit: RECURSION_LIMIT }
@@ -328,7 +374,7 @@ async function answer(
   const model = await makeModel(settings)
   const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
-  const agent = await makeAgent(model, tools)
+  const agent = await makeAgent(model, tools, missionFor(diff))
 
   emit({ kind: 'status', scope, message: 'Looking into it…' })
   const res: any = await agent.invoke(

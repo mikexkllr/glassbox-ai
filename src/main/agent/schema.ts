@@ -24,10 +24,12 @@ const walkChunk = z.object({
   file: z.string().describe('Repo-relative file path this chunk lives in.'),
   startLine: z.number().int().describe('1-based start line (new file numbering).'),
   endLine: z.number().int().describe('1-based end line (new file numbering).'),
-  changeKind: z.enum(['added', 'modified', 'removed']).describe('What happened to this block in the diff.'),
+  changeKind: z
+    .enum(['added', 'modified', 'removed', 'context'])
+    .describe('What happened to this block in the diff. Use "context" for existing code explored in a topic journey (no diff).'),
   gist: z
     .string()
-    .describe('ONE punchy line: what changed here. Always visible, so make it concrete and skimmable.'),
+    .describe('ONE punchy line: what changed here (or, in a topic journey, what this block does). Always visible, so make it concrete and skimmable.'),
   story: chunkStory
 })
 

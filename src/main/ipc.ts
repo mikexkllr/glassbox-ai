@@ -24,7 +24,7 @@ import type {
   Settings,
   SectionPlan
 } from '@shared/types'
-import { listBranches, computeDiff, showFile } from './git/diff.js'
+import { listBranches, computeDiff, computeTopicSnapshot, showFile } from './git/diff.js'
 import { getSettings, saveSettings } from './store/settings.js'
 import { loadSession, saveSession } from './store/cache.js'
 import { makeModel } from './agent/model.js'
@@ -60,6 +60,10 @@ export function registerIpc(): void {
 
   handle('repo:diff', async (_e, repoPath: string, base: string, feature: string) =>
     computeDiff(repoPath, base, feature)
+  )
+
+  handle('repo:topic', async (_e, repoPath: string, topic: string) =>
+    computeTopicSnapshot(repoPath, topic)
   )
 
   handle('repo:file', async (_e, repoPath: string, ref: string, file: string) =>

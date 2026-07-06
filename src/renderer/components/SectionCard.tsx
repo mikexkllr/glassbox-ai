@@ -173,7 +173,9 @@ function traceLinesFor(value: WalkthroughSection['traceableValues'][number] | nu
 const CHANGE_META: Record<string, { label: string; cls: string; bar: string; sign: string }> = {
   added: { label: 'ADDED', cls: 'bg-glass-add/15 text-glass-add', bar: 'border-l-glass-add', sign: '+' },
   modified: { label: 'CHANGED', cls: 'bg-glass-accent/15 text-glass-accent', bar: 'border-l-glass-accent', sign: '~' },
-  removed: { label: 'REMOVED', cls: 'bg-glass-del/15 text-glass-del', bar: 'border-l-glass-del', sign: '−' }
+  removed: { label: 'REMOVED', cls: 'bg-glass-del/15 text-glass-del', bar: 'border-l-glass-del', sign: '−' },
+  // topic journeys: existing code being explored, not a change
+  context: { label: 'EXPLORE', cls: 'bg-glass-accent2/15 text-glass-accent2', bar: 'border-l-glass-accent2', sign: '›' }
 }
 
 function ChunkCard({

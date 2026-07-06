@@ -138,6 +138,38 @@ export async function computeDiff(
   }
 }
 
+/**
+ * A "diff" for a topic journey: no changed files, both endpoints pinned to the
+ * repo's current HEAD. The topic question rides along so the agent, the cache
+ * key, and the UI all know what the journey is about. Reusing the DiffSummary
+ * shape keeps the whole downstream pipeline (worktrees, sections, sessions)
+ * working unchanged.
+ */
+export async function computeTopicSnapshot(repoPath: string, topic: string): Promise<DiffSummary> {
+  const g = git(repoPath)
+  const headSha = (await g.revparse(['HEAD'])).trim()
+  let branch = ''
+  try {
+    branch = (await g.revparse(['--abbrev-ref', 'HEAD'])).trim()
+  } catch {
+    branch = ''
+  }
+  const ref = branch && branch !== 'HEAD' ? branch : headSha
+  return {
+    repoPath,
+    base: ref,
+    feature: ref,
+    baseSha: headSha,
+    featureSha: headSha,
+    mergeBase: null,
+    mode: 'topic',
+    topic: topic.trim(),
+    files: [],
+    totalAdditions: 0,
+    totalDeletions: 0
+  }
+}
+
 /** Read a file's content at a given ref (e.g. the feature branch), for rendering pokeable code. */
 export async function showFile(repoPath: string, ref: string, file: string): Promise<string> {
   const g = git(repoPath)

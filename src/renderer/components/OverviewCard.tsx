@@ -38,12 +38,18 @@ export default function OverviewCard() {
           )}
           {diff && (
             <div className="mt-4 flex gap-4 text-[12px] text-ink-600">
-              <span>{diff.files.length} files</span>
-              <span className="text-glass-add">+{diff.totalAdditions}</span>
-              <span className="text-glass-del">−{diff.totalDeletions}</span>
-              <span className="font-mono">
-                {diff.base} → {diff.feature}
-              </span>
+              {diff.mode === 'topic' ? (
+                <span className="font-mono">🧭 “{diff.topic}” @ {diff.feature}</span>
+              ) : (
+                <>
+                  <span>{diff.files.length} files</span>
+                  <span className="text-glass-add">+{diff.totalAdditions}</span>
+                  <span className="text-glass-del">−{diff.totalDeletions}</span>
+                  <span className="font-mono">
+                    {diff.base} → {diff.feature}
+                  </span>
+                </>
+              )}
             </div>
           )}
         </>

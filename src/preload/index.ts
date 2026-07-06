@@ -15,6 +15,7 @@ const api: GlassboxApi = {
   pickRepo: () => ipcRenderer.invoke('repo:pick'),
   listBranches: (repoPath) => ipcRenderer.invoke('repo:branches', repoPath),
   computeDiff: (repoPath, base, feature) => ipcRenderer.invoke('repo:diff', repoPath, base, feature),
+  computeTopicSnapshot: (repoPath, topic) => ipcRenderer.invoke('repo:topic', repoPath, topic),
   readFileContent: (repoPath, ref, file) => ipcRenderer.invoke('repo:file', repoPath, ref, file),
 
   getSettings: () => ipcRenderer.invoke('settings:get'),

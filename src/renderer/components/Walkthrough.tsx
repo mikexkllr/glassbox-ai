@@ -45,6 +45,8 @@ export default function Walkthrough() {
   const [wrapped, setWrapped] = useState(false)
   const [confirm, setConfirm] = useState<null | 'regenerate' | 'reset'>(null)
   const isMac = window.glassbox.platform === 'darwin'
+  // Topic journeys explore existing code — there's no diff to map and no PR verdict to mint.
+  const topicMode = diff?.mode === 'topic'
 
   // Cashing out now leads through the "PR Wrapped" recap, which then mints the verdict.
   const openCashout = () => setWrapped(true)
@@ -89,8 +91,8 @@ export default function Walkthrough() {
         </button>
         <div className="text-[13px] font-medium text-white">Glassbox</div>
         {diff && (
-          <div className="hidden font-mono text-[11.5px] text-ink-600 lg:block">
-            {diff.base} → {diff.feature}
+          <div className="hidden max-w-[320px] truncate font-mono text-[11.5px] text-ink-600 lg:block">
+            {diff.mode === 'topic' ? <>🧭 “{diff.topic}”</> : <>{diff.base} → {diff.feature}</>}
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -118,13 +120,15 @@ export default function Walkthrough() {
             ))}
           </div>
           <DepthDial />
-          <button
-            onClick={() => setMap(true)}
-            title="Blast radius — fog-of-war map of the diff"
-            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
-          >
-            🗺️
-          </button>
+          {!topicMode && (
+            <button
+              onClick={() => setMap(true)}
+              title="Blast radius — fog-of-war map of the diff"
+              className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
+            >
+              🗺️
+            </button>
+          )}
           <button
             onClick={() => setFlow(true)}
             title="Data flow — watch values move through the change"
@@ -161,12 +165,14 @@ export default function Walkthrough() {
           >
             💬 Ask
           </button>
-          <button
-            onClick={openCashout}
-            className="no-drag rounded-lg border border-glass-warm/40 bg-glass-warm/10 px-3 py-1.5 text-[12.5px] font-semibold text-glass-warm hover:bg-glass-warm/20"
-          >
-            🎰 Cash out
-          </button>
+          {!topicMode && (
+            <button
+              onClick={openCashout}
+              className="no-drag rounded-lg border border-glass-warm/40 bg-glass-warm/10 px-3 py-1.5 text-[12.5px] font-semibold text-glass-warm hover:bg-glass-warm/20"
+            >
+              🎰 Cash out
+            </button>
+          )}
           <button onClick={() => openSettings(true)} className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600">
             ⚙
           </button>
@@ -187,7 +193,7 @@ export default function Walkthrough() {
               {overview?.sections.map((plan, i) => (
                 <SectionCard key={plan.id} plan={plan} index={i} />
               ))}
-              {overview && (
+              {overview && !topicMode && (
                 <CashoutCta allDone={allDone} done={done} total={total} onClick={openCashout} />
               )}
             </div>
