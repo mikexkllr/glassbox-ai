@@ -70,7 +70,8 @@ const ACHIEVEMENTS: Record<string, Achievement> = {
   code_smith: { id: 'code_smith', label: 'Code Smith (solved a challenge)', emoji: '⚒️' },
   no_hints: { id: 'no_hints', label: 'Flawless Forge (no hints, 90+)', emoji: '🥇' },
   juiced: { id: 'juiced', label: 'Juiced Up (used a power-up)', emoji: '⚡' },
-  bug_catcher: { id: 'bug_catcher', label: 'Bug Catcher (caught a golden bug)', emoji: '🐞' }
+  bug_catcher: { id: 'bug_catcher', label: 'Bug Catcher (caught a golden bug)', emoji: '🐞' },
+  exterminator: { id: 'exterminator', label: 'Exterminator (15+ in Bug Blaster 3D)', emoji: '🪰' }
 }
 
 interface AwardOpts {

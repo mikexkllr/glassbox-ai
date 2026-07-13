@@ -6,6 +6,7 @@ import GamesHub from './Games'
 import Shop from './Shop'
 import Review from './Review'
 import SkillTree from './SkillTree'
+import Coin3D from './Coin3D'
 import { cn } from '../lib/files'
 
 type Tab = 'daily' | 'quests' | 'games' | 'review' | 'shop' | 'slots' | 'skills' | 'stats'
@@ -66,8 +67,8 @@ function Daily() {
 
   return (
     <div className="text-center">
-      <div className="text-[56px]">🔥</div>
-      <div className="text-[28px] font-black text-glass-warm">{streak}-day streak</div>
+      <Coin3D size={110} spin={claimed ? 0.4 : 1} />
+      <div className="text-[28px] font-black text-glass-warm">🔥 {streak}-day streak</div>
       <div className="mb-4 text-[12px] text-ink-600">best: {bestStreak} days · come back daily to keep it alive</div>
 
       <div className="mx-auto flex max-w-xs items-center justify-center gap-1">

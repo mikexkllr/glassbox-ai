@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { useGame } from '../game/store'
 import { play } from '../game/sfx'
 import { getFileText, cn } from '../lib/files'
+import BugBlaster3D from './BugBlaster3D'
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -15,7 +16,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-type GameId = 'order' | 'match' | 'blank' | 'bughunt' | 'predict'
+type GameId = 'order' | 'match' | 'blank' | 'bughunt' | 'predict' | 'blaster3d'
 
 /** A hub of interactive code-learning games, built from the loaded walkthrough. */
 export default function GamesHub() {
@@ -23,12 +24,8 @@ export default function GamesHub() {
   const sections = useMemo(() => Object.values(sectionsMap), [sectionsMap])
   const [game, setGame] = useState<GameId | null>(null)
 
-  if (sections.length === 0)
-    return (
-      <div className="py-10 text-center text-[13px] text-ink-600">
-        Open a section first — games are built from the code you're reviewing. 🎮
-      </div>
-    )
+  // Bug Blaster is pure arcade — it doesn't need a loaded walkthrough.
+  if (game === 'blaster3d') return <BugBlaster3D onBack={() => setGame(null)} />
 
   if (game === 'order') return <OrderFlow sections={sections} onBack={() => setGame(null)} />
   if (game === 'match') return <MatchUp sections={sections} onBack={() => setGame(null)} />
@@ -36,15 +33,24 @@ export default function GamesHub() {
   if (game === 'bughunt') return <BugHunt sections={sections} onBack={() => setGame(null)} />
   if (game === 'predict') return <PredictDiff sections={sections} onBack={() => setGame(null)} />
 
-  const cards: { id: GameId; emoji: string; title: string; desc: string }[] = [
+  const codeCards: { id: GameId; emoji: string; title: string; desc: string }[] = [
     { id: 'bughunt', emoji: '🐛', title: 'Bug Hunt', desc: 'One line was tampered with — spot the fake.' },
     { id: 'predict', emoji: '🔮', title: 'Predict the Diff', desc: 'Read a changed block — guess what it does.' },
     { id: 'order', emoji: '🔢', title: 'Order the Flow', desc: 'Click a value’s steps into execution order.' },
     { id: 'match', emoji: '🧩', title: 'Match Up', desc: 'Pair each symbol with what it does.' },
     { id: 'blank', emoji: '⌨️', title: 'Fill the Blank', desc: 'Type the missing identifier in real code.' }
   ]
+  const cards: { id: GameId; emoji: string; title: string; desc: string; badge?: string }[] = [
+    { id: 'blaster3d', emoji: '🪰', title: 'Bug Blaster 3D', desc: 'Bugs escaped into 3D space — zap them before time runs out.', badge: '3D' },
+    ...(sections.length > 0 ? codeCards : [])
+  ]
   return (
     <div className="grid grid-cols-1 gap-2">
+      {sections.length === 0 && (
+        <div className="pb-2 text-center text-[12px] text-ink-600">
+          Open a section to unlock the code games — the arcade is always open. 🎮
+        </div>
+      )}
       {cards.map((c) => (
         <button
           key={c.id}
@@ -53,7 +59,14 @@ export default function GamesHub() {
         >
           <span className="text-[26px]">{c.emoji}</span>
           <span>
-            <span className="block text-[13.5px] font-semibold text-white">{c.title}</span>
+            <span className="flex items-center gap-1.5 text-[13.5px] font-semibold text-white">
+              {c.title}
+              {c.badge && (
+                <span className="rounded bg-glass-accent2/20 px-1.5 py-0.5 text-[9.5px] font-black tracking-wide text-glass-accent2">
+                  {c.badge}
+                </span>
+              )}
+            </span>
             <span className="block text-[11.5px] text-ink-600">{c.desc}</span>
           </span>
           <span className="ml-auto text-glass-accent">▸</span>
