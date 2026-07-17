@@ -1,5 +1,5 @@
 import { createDeepAgent } from 'deepagents'
-import { createMiddleware, ToolInvocationError, ToolMessage } from 'langchain'
+import { createMiddleware, modelRetryMiddleware, ToolInvocationError, ToolMessage } from 'langchain'
 import type { BaseMessage } from '@langchain/core/messages'
 import { makeModel } from './model.js'
 import { buildInvestigation, makeSubmitTool } from './tools.js'
@@ -111,8 +111,31 @@ const toolErrorFeedback = createMiddleware({
   }
 })
 
+// Matches transient provider failures worth retrying: dropped connections
+// ("fetch failed"), DNS/socket errors, timeouts, rate limits, and 5xx — but
+// not auth/config errors, which should fail fast.
+const TRANSIENT_MODEL_ERROR =
+  /fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EPIPE|socket hang up|network|timed? ?out|429|rate.?limit|overloaded|50[0-4]|internal server error|bad gateway|service unavailable/i
+
+function isTransientModelError(e: Error): boolean {
+  for (let cur = e as any, depth = 0; cur && depth < 6; cur = cur.cause, depth++) {
+    if (TRANSIENT_MODEL_ERROR.test(`${cur.message ?? ''} ${cur.code ?? ''} ${cur.status ?? ''}`)) return true
+  }
+  return false
+}
+
+// A single dropped connection to the provider ("TypeError: fetch failed")
+// would otherwise abort the whole run — retry transient failures with backoff.
+const modelRetry = modelRetryMiddleware({
+  maxRetries: 3,
+  retryOn: isTransientModelError,
+  initialDelayMs: 1000,
+  maxDelayMs: 10_000,
+  onFailure: 'error'
+})
+
 async function makeAgent(model: any, tools: any[], mission: string = MISSION) {
-  return await createDeepAgent({ model, tools, systemPrompt: mission, middleware: [toolErrorFeedback] })
+  return await createDeepAgent({ model, tools, systemPrompt: mission, middleware: [modelRetry, toolErrorFeedback] })
 }
 
 // ---------------------------------------------------------------------------
