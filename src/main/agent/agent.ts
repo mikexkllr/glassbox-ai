@@ -1,4 +1,5 @@
 import { createDeepAgent } from 'deepagents'
+import { createMiddleware, ToolInvocationError, ToolMessage } from 'langchain'
 import type { BaseMessage } from '@langchain/core/messages'
 import { makeModel } from './model.js'
 import { buildInvestigation, makeSubmitTool } from './tools.js'
@@ -73,8 +74,45 @@ function extractText(messages: BaseMessage[]): string {
   return typeof last?.content === 'string' ? last.content : ''
 }
 
+function findToolInvocationError(e: unknown): { toolCall?: ToolInvocationError['toolCall']; detail: string } | null {
+  // The error may be wrapped in one or more MiddlewareErrors, which copy the
+  // inner error's `name` but not its `toolCall`/`toolError` — walk the cause
+  // chain for the real ToolInvocationError first, falling back to a name match.
+  let named: Error | null = null
+  for (let cur = e as any, depth = 0; cur && depth < 6; cur = cur.cause, depth++) {
+    if (cur instanceof ToolInvocationError) {
+      return { toolCall: cur.toolCall, detail: cur.toolError?.message ?? cur.message }
+    }
+    if (cur instanceof Error && cur.name === 'ToolInvocationError') named = cur
+  }
+  return named ? { detail: named.message } : null
+}
+
+// deepagents installs wrapToolCall middleware, and langchain re-throws tool
+// errors that surface through middleware instead of feeding them back to the
+// model — so a single malformed tool call (e.g. args that fail the zod schema)
+// would abort the whole run. Catch input-parsing failures here and return them
+// as a ToolMessage so the model can correct its own call within the same run.
+const toolErrorFeedback = createMiddleware({
+  name: 'toolErrorFeedback',
+  wrapToolCall: async (request, handler) => {
+    try {
+      return await handler(request)
+    } catch (e) {
+      const invocation = findToolInvocationError(e)
+      const toolCall = invocation?.toolCall ?? request.toolCall
+      if (!invocation || !toolCall?.id) throw e
+      return new ToolMessage({
+        name: toolCall.name,
+        tool_call_id: toolCall.id,
+        content: `Your ${toolCall.name} call was rejected: ${invocation.detail.slice(0, 2000)}\nCall ${toolCall.name} again with ALL required fields, passing plain JSON arguments only — never XML-style <parameter> tags inside string values.`
+      })
+    }
+  }
+})
+
 async function makeAgent(model: any, tools: any[], mission: string = MISSION) {
-  return await createDeepAgent({ model, tools, systemPrompt: mission })
+  return await createDeepAgent({ model, tools, systemPrompt: mission, middleware: [toolErrorFeedback] })
 }
 
 // ---------------------------------------------------------------------------
