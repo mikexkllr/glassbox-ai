@@ -18,25 +18,30 @@ const chunkStory = z.object({
     .describe('A subtle point, edge case, footgun, or watch-out worth knowing about this block. Optional.')
 })
 
-const walkChunk = z.object({
-  id: z.string().describe('Short stable id, e.g. "chunk-1".'),
-  title: z.string().describe('Short human title for the chunk.'),
-  file: z.string().describe('Repo-relative file path this chunk lives in.'),
-  startLine: z.number().int().describe('1-based start line (new file numbering).'),
-  endLine: z.number().int().describe('1-based end line (new file numbering).'),
-  changeKind: z
-    .enum(['added', 'modified', 'removed', 'context'])
-    .describe('What happened to this block in the diff. Use "context" for existing code explored in a topic journey (no diff).'),
-  gist: z
-    .string()
-    .describe('ONE punchy line: what changed here (or, in a topic journey, what this block does). Always visible, so make it concrete and skimmable.'),
-  story: chunkStory
-})
+const walkChunk = z
+  .object({
+    id: z.string().describe('Short stable id, e.g. "chunk-1".'),
+    title: z.string().describe('Short human title for the chunk.'),
+    file: z.string().describe('Repo-relative file path this chunk lives in.'),
+    startLine: z.number().int().min(1).describe('1-based start line (new file numbering).'),
+    endLine: z.number().int().min(1).describe('1-based end line (new file numbering).'),
+    changeKind: z
+      .enum(['added', 'modified', 'removed', 'context'])
+      .describe('What happened to this block in the diff. Use "context" for existing code explored in a topic journey (no diff).'),
+    gist: z
+      .string()
+      .describe('ONE punchy line: what changed here (or, in a topic journey, what this block does). Always visible, so make it concrete and skimmable.'),
+    story: chunkStory
+  })
+  // A reversed or single-point range (e.g. both lines the same off-by-one guess)
+  // silently slices to nothing in the renderer, showing a blank code block with
+  // no error — reject it here so the model is asked to re-check the real lines.
+  .refine((c) => c.endLine >= c.startLine, { message: 'endLine must be >= startLine.', path: ['endLine'] })
 
 const inlineExplanation = z.object({
   symbol: z.string().describe('The exact identifier as it appears in the code.'),
   file: z.string(),
-  line: z.number().int().describe('1-based line where the symbol appears.'),
+  line: z.number().int().min(1).describe('1-based line where the symbol appears.'),
   kind: z.enum(['variable', 'function', 'type', 'constant', 'parameter', 'import', 'other']),
   gist: z.string().describe('One short sentence: what it is / where it came from / what it holds here.'),
   deep: z.string().describe('A richer explanation for readers who want more depth.')
@@ -44,7 +49,7 @@ const inlineExplanation = z.object({
 
 const traceStep = z.object({
   file: z.string(),
-  line: z.number().int(),
+  line: z.number().int().min(1),
   label: z.string().describe('What happens to the value at this step.'),
   exampleValue: z
     .string()
@@ -81,9 +86,11 @@ const codingChallenge = z.object({
   language: z.string().describe('Language of the snippet, e.g. "typescript", "python".'),
   starterCode: z
     .string()
+    .min(1, 'starterCode cannot be empty.')
     .describe('A small, self-contained snippet (5-20 lines) adapted from this section, with ONE clearly marked gap the reader fills (e.g. "// TODO: your code here"). Keep every needed piece of context in the snippet.'),
   referenceSolution: z
     .string()
+    .min(1, 'referenceSolution cannot be empty.')
     .describe('The completed snippet (or just the filled-in part) — what a correct answer looks like. Used to score the attempt and revealed afterwards.'),
   hints: z
     .array(z.string())
@@ -93,17 +100,19 @@ const codingChallenge = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']).describe('How hard the exercise is for someone who just read the section.')
 })
 
-const reviewFinding = z.object({
-  id: z.string().describe('Short stable id, e.g. "f1".'),
-  file: z.string().describe('Repo-relative file the issue is in.'),
-  startLine: z.number().int().describe('1-based start line of the problematic code (new file numbering).'),
-  endLine: z.number().int().describe('1-based end line of the problematic code.'),
-  severity: z.enum(['bug', 'smell', 'nit', 'question']).describe('bug = likely incorrect; smell = risky/poor; nit = minor; question = unclear intent.'),
-  title: z.string().describe('Short label for the issue, shown once spotted (e.g. "Non-constant-time compare").'),
-  hint: z.string().describe('A VAGUE nudge toward the area without giving it away — what to look for, not the answer.'),
-  explanation: z.string().describe('The deep "why this is a problem" — concrete, grounded in THIS code, teaching the reader.'),
-  suggestion: z.string().optional().describe('How a reviewer would ask for it to be fixed. Optional.')
-})
+const reviewFinding = z
+  .object({
+    id: z.string().describe('Short stable id, e.g. "f1".'),
+    file: z.string().describe('Repo-relative file the issue is in.'),
+    startLine: z.number().int().min(1).describe('1-based start line of the problematic code (new file numbering).'),
+    endLine: z.number().int().min(1).describe('1-based end line of the problematic code.'),
+    severity: z.enum(['bug', 'smell', 'nit', 'question']).describe('bug = likely incorrect; smell = risky/poor; nit = minor; question = unclear intent.'),
+    title: z.string().describe('Short label for the issue, shown once spotted (e.g. "Non-constant-time compare").'),
+    hint: z.string().describe('A VAGUE nudge toward the area without giving it away — what to look for, not the answer.'),
+    explanation: z.string().describe('The deep "why this is a problem" — concrete, grounded in THIS code, teaching the reader.'),
+    suggestion: z.string().optional().describe('How a reviewer would ask for it to be fixed. Optional.')
+  })
+  .refine((f) => f.endLine >= f.startLine, { message: 'endLine must be >= startLine.', path: ['endLine'] })
 
 export const sectionSchema = z.object({
   id: z.string().describe('The section id you were asked to build.'),
