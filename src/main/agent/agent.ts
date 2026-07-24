@@ -138,6 +138,35 @@ async function makeAgent(model: any, tools: any[], mission: string = MISSION) {
   return await createDeepAgent({ model, tools, systemPrompt: mission, middleware: [modelRetry, toolErrorFeedback] })
 }
 
+// Weaker/local models (e.g. via Ollama) sometimes answer in plain prose instead
+// of calling the submit tool at all — toolErrorFeedback can't help there since no
+// tool call was attempted. Give the model one nudge to correct itself before the
+// caller falls back to its no-submission handling.
+async function invokeUntilSubmitted(
+  agent: any,
+  prompt: string,
+  isCaptured: () => boolean,
+  toolName: string,
+  recursionLimit: number
+): Promise<any> {
+  let res: any = await agent.invoke({ messages: [{ role: 'user', content: prompt }] }, { recursionLimit })
+  if (!isCaptured()) {
+    res = await agent.invoke(
+      {
+        messages: [
+          ...res.messages,
+          {
+            role: 'user',
+            content: `You didn't call ${toolName} — you responded with plain text instead. Call ${toolName} now with your findings; do not write more prose.`
+          }
+        ]
+      },
+      { recursionLimit }
+    )
+  }
+  return res
+}
+
 // ---------------------------------------------------------------------------
 // Overview + section plan
 // ---------------------------------------------------------------------------
@@ -181,10 +210,7 @@ Explore the repository with the repo_* tools (start with repo_ls and repo_grep f
     : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.`
 
   emit({ kind: 'status', scope, message: topicMode ? 'Charting the journey…' : 'Forming the big picture…' })
-  const res: any = await agent.invoke(
-    { messages: [{ role: 'user', content: prompt }] },
-    { recursionLimit: RECURSION_LIMIT }
-  )
+  const res: any = await invokeUntilSubmitted(agent, prompt, () => captured !== null, 'submit_overview', RECURSION_LIMIT)
 
   if (!captured) {
     const text = extractText(res.messages)
@@ -271,9 +297,12 @@ Investigate the real repository with the repo_* tools to ground every explanatio
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`
 
   const prompt = diff.mode === 'topic' ? topicPrompt : prPrompt
-  const res: any = await agent.invoke(
-    { messages: [{ role: 'user', content: prompt }] },
-    { recursionLimit: RECURSION_LIMIT }
+  const res: any = await invokeUntilSubmitted(
+    agent,
+    prompt,
+    () => captured !== null,
+    'submit_walkthrough_section',
+    RECURSION_LIMIT
   )
 
   if (!captured) {
