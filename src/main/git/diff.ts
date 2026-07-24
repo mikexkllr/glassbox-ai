@@ -40,6 +40,48 @@ async function fetchAll(g: SimpleGit): Promise<void> {
   }
 }
 
+/**
+ * Resolve `ref` to a commit SHA, preferring `origin/<ref>` over a local
+ * branch of the same name when the local branch is behind (a fast-forward) —
+ * so a branch the user selected but never manually pulled still resolves to
+ * what's actually on origin post-fetch. Never touches the working tree or
+ * moves the local branch pointer; if the local branch is ahead or has
+ * diverged (the user's own unpushed work), the local ref wins.
+ */
+async function resolveFreshRef(g: SimpleGit, ref: string): Promise<string> {
+  const local = await (async () => {
+    try {
+      return (await g.revparse([ref])).trim()
+    } catch {
+      return ''
+    }
+  })()
+  // Only a bare branch name (not already `origin/...`, a raw sha, or `HEAD`)
+  // can have a same-named remote-tracking counterpart worth comparing.
+  if (!local || ref.includes('/') || ref === 'HEAD') return local
+
+  let remote = ''
+  try {
+    remote = (await g.revparse([`origin/${ref}`])).trim()
+  } catch {
+    return local // no remote counterpart (e.g. a local-only branch)
+  }
+  if (!remote || remote === local) return local
+
+  // `--is-ancestor` signals "no" via a bare non-zero exit with no stderr, which
+  // simple-git's default error detection (exitCode && stderr) doesn't treat as
+  // a failure — it would resolve "true" either way. Comparing merge-base's
+  // printed SHA sidesteps that: local is a fast-forward behind remote only if
+  // their common ancestor *is* local.
+  let mergeBase = ''
+  try {
+    mergeBase = (await g.raw(['merge-base', local, remote])).trim()
+  } catch {
+    return local // unrelated histories or other failure — don't guess
+  }
+  return mergeBase === local ? remote : local
+}
+
 export async function listBranches(
   repoPath: string
 ): Promise<{ branches: string[]; current: string; defaultBase: string }> {
@@ -110,26 +152,20 @@ export async function computeDiff(
   const g = git(repoPath)
   await fetchAll(g)
 
+  // Pin the exact endpoint commits so the cache key — and the diff itself —
+  // reflect the real, freshest content, not a (possibly stale, un-pulled)
+  // local branch pointer.
+  const [baseSha, featureSha] = await Promise.all([resolveFreshRef(g, base), resolveFreshRef(g, feature)])
+
   let mergeBase: string | null = null
   try {
-    mergeBase = (await g.raw(['merge-base', base, feature])).trim() || null
+    mergeBase = (await g.raw(['merge-base', baseSha, featureSha])).trim() || null
   } catch {
     mergeBase = null
   }
 
-  // Pin the exact endpoint commits so the cache key reflects the real content,
-  // not just the (movable) branch names.
-  const resolveRef = async (ref: string): Promise<string> => {
-    try {
-      return (await g.revparse([ref])).trim()
-    } catch {
-      return ''
-    }
-  }
-  const [baseSha, featureSha] = await Promise.all([resolveRef(base), resolveRef(feature)])
-
   // base...feature => changes on feature since it diverged from base.
-  const range = mergeBase ? `${base}...${feature}` : `${base}..${feature}`
+  const range = mergeBase ? `${baseSha}...${featureSha}` : `${baseSha}..${featureSha}`
   const raw = await g.raw(['diff', '--no-color', '-M', range])
 
   const parsed = parseDiff(raw)
@@ -163,28 +199,41 @@ export async function computeDiff(
 }
 
 /**
- * A "diff" for a topic journey: no changed files, both endpoints pinned to the
- * repo's current HEAD. The topic question rides along so the agent, the cache
- * key, and the UI all know what the journey is about. Reusing the DiffSummary
- * shape keeps the whole downstream pipeline (worktrees, sections, sessions)
- * working unchanged.
+ * A "diff" for a topic journey: no changed files, both endpoints pinned to a
+ * single ref. The topic question rides along so the agent, the cache key, and
+ * the UI all know what the journey is about. Reusing the DiffSummary shape
+ * keeps the whole downstream pipeline (worktrees, sections, sessions) working
+ * unchanged.
+ *
+ * `branch` lets the caller pin the snapshot to a specific (freshly-fetched)
+ * branch instead of whatever happens to be checked out locally — otherwise a
+ * stale local HEAD would silently answer questions against old code.
  */
-export async function computeTopicSnapshot(repoPath: string, topic: string): Promise<DiffSummary> {
+export async function computeTopicSnapshot(
+  repoPath: string,
+  topic: string,
+  branch?: string
+): Promise<DiffSummary> {
   const g = git(repoPath)
-  const headSha = (await g.revparse(['HEAD'])).trim()
-  let branch = ''
-  try {
-    branch = (await g.revparse(['--abbrev-ref', 'HEAD'])).trim()
-  } catch {
-    branch = ''
+  await fetchAll(g)
+
+  let ref = branch?.trim() || ''
+  if (!ref) {
+    try {
+      ref = (await g.revparse(['--abbrev-ref', 'HEAD'])).trim()
+    } catch {
+      ref = ''
+    }
   }
-  const ref = branch && branch !== 'HEAD' ? branch : headSha
+  const sha = ref ? await resolveFreshRef(g, ref) : (await g.revparse(['HEAD'])).trim()
+  if (!ref || ref === 'HEAD') ref = sha
+
   return {
     repoPath,
     base: ref,
     feature: ref,
-    baseSha: headSha,
-    featureSha: headSha,
+    baseSha: sha,
+    featureSha: sha,
     mergeBase: null,
     mode: 'topic',
     topic: topic.trim(),

@@ -33,7 +33,10 @@ export default function Onboarding() {
   const level = Math.floor(xp / 400) + 1
 
   const repoName = repoPath?.split('/').pop()
-  const ready = !!repoPath && !busy && (journeyMode === 'topic' ? topic.trim().length > 0 : !!base && !!feature)
+  const ready =
+    !!repoPath &&
+    !busy &&
+    (journeyMode === 'topic' ? topic.trim().length > 0 && !!base : !!base && !!feature)
   const returning = xp > 0 || coins > 0
 
   return (
@@ -164,6 +167,20 @@ export default function Onboarding() {
                     )
                   ) : (
                     <>
+                      {branches.length > 0 && (
+                        <>
+                          <select value={base} onChange={(e) => setBase(e.target.value)} className="select no-drag mb-2 w-full">
+                            {branches.map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="-mt-1.5 mb-2 text-[11px] text-ink-600">
+                            branch to ask about — freshest commits pulled automatically
+                          </p>
+                        </>
+                      )}
                       <input
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}

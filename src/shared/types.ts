@@ -420,8 +420,8 @@ export interface GlassboxApi {
   pickRepo: () => Promise<string | null>
   listBranches: (repoPath: string) => Promise<{ branches: string[]; current: string; defaultBase: string }>
   computeDiff: (repoPath: string, base: string, feature: string) => Promise<DiffSummary>
-  /** Snapshot of the repo at its current branch, seeded with a question/topic (topic journey). */
-  computeTopicSnapshot: (repoPath: string, topic: string) => Promise<DiffSummary>
+  /** Snapshot of the repo pinned to `branch` (freshly fetched; defaults to current HEAD if omitted), seeded with a question/topic (topic journey). */
+  computeTopicSnapshot: (repoPath: string, topic: string, branch?: string) => Promise<DiffSummary>
   readFileContent: (repoPath: string, ref: string, file: string) => Promise<string>
 
   getSettings: () => Promise<Settings>

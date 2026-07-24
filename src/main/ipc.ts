@@ -62,8 +62,8 @@ export function registerIpc(): void {
     computeDiff(repoPath, base, feature)
   )
 
-  handle('repo:topic', async (_e, repoPath: string, topic: string) =>
-    computeTopicSnapshot(repoPath, topic)
+  handle('repo:topic', async (_e, repoPath: string, topic: string, branch?: string) =>
+    computeTopicSnapshot(repoPath, topic, branch)
   )
 
   handle('repo:file', async (_e, repoPath: string, ref: string, file: string) =>

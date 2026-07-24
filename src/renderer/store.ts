@@ -305,11 +305,15 @@ export const useStore = create<State>((set, get) => {
   },
 
   async startTopicJourney() {
-    const { repoPath, topic } = get()
+    const { repoPath, topic, base } = get()
     if (!repoPath || !topic.trim()) return
+    if (!base) {
+      set({ error: 'Pick a branch to ask questions against.' })
+      return
+    }
     set({ busyDiff: true, error: null })
     try {
-      const diff = await window.glassbox.computeTopicSnapshot(repoPath, topic)
+      const diff = await window.glassbox.computeTopicSnapshot(repoPath, topic, base)
       await enterJourney(diff)
     } catch (e) {
       Sentry.captureException(e, { extra: { scope: 'startTopicJourney' } })
