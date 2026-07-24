@@ -25,12 +25,35 @@ function git(repoPath: string): SimpleGit {
   return simpleGit({ baseDir: repoPath, maxConcurrentProcesses: 4 })
 }
 
+/**
+ * Update remote-tracking refs before we read branches/diffs, so a PR branch
+ * that moved on `origin` (or only exists there) is visible. `fetch` only
+ * touches remote-tracking refs — never the user's local branches or working
+ * tree — so this can't clobber a dirty checkout. Best-effort: repos with no
+ * remote, or no network, just fall back to whatever refs are already local.
+ */
+async function fetchAll(g: SimpleGit): Promise<void> {
+  try {
+    await g.fetch(['--all', '--prune'])
+  } catch (e) {
+    console.warn(`[glassbox] git fetch failed, using local refs: ${(e as Error).message}`)
+  }
+}
+
 export async function listBranches(
   repoPath: string
 ): Promise<{ branches: string[]; current: string; defaultBase: string }> {
   const g = git(repoPath)
-  const summary = await g.branchLocal()
-  const branches = summary.all.filter((b) => !b.startsWith('remotes/'))
+  await fetchAll(g)
+  const summary = await g.branch(['-a'])
+  const local = summary.all.filter((b) => !b.startsWith('remotes/'))
+  // Surface remote-only branches (e.g. a PR never checked out locally) as
+  // `origin/foo`, deduped against any local branch of the same name.
+  const remote = summary.all
+    .filter((b) => b.startsWith('remotes/') && !b.endsWith('/HEAD'))
+    .map((b) => b.slice('remotes/'.length))
+    .filter((b) => !local.includes(b.slice(b.indexOf('/') + 1)))
+  const branches = [...local, ...remote]
   const current = summary.current
   // Prefer main/master/develop as the default base.
   const defaultBase =
@@ -85,6 +108,7 @@ export async function computeDiff(
   feature: string
 ): Promise<DiffSummary> {
   const g = git(repoPath)
+  await fetchAll(g)
 
   let mergeBase: string | null = null
   try {
