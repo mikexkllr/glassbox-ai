@@ -528,19 +528,23 @@ function ChunkBeat({ plan, section, chunk, onHunt }: { plan: SectionPlan; sectio
         />
       </div>
 
+      {/* The one-line "what changed here" is always visible, exactly as in the scroll
+          view — hiding it too left the beat looking empty and made the reader guess
+          from raw code alone. Only the deeper story is gated on active recall. */}
+      <p className="mt-5 text-[15px] leading-relaxed text-gray-100">{chunk.gist}</p>
+
       {!revealed ? (
-        <div className="mt-5 rounded-xl border border-dashed border-glass-accent/40 bg-glass-accent/5 p-5 text-center">
-          <p className="text-[14px] text-gray-200">🤔 Before you peek — what do you think this block does?</p>
+        <div className="mt-4 rounded-xl border border-dashed border-glass-accent/40 bg-glass-accent/5 p-5 text-center">
+          <p className="text-[14px] text-gray-200">🤔 Before you peek — what else does this block do?</p>
           <button
             onClick={reveal}
             className="no-drag mt-3 rounded-lg bg-glass-accent px-5 py-2 text-[13.5px] font-semibold text-ink-950 hover:brightness-110"
           >
-            Reveal what it does · +4🪙
+            Reveal the full story · +4🪙
           </button>
         </div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 space-y-3">
-          <p className="text-[15px] leading-relaxed text-gray-100">{chunk.gist}</p>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-3">
           <Field label="What it does" text={chunk.story.what} />
           <Field label="How it fits" text={chunk.story.fits} />
           {chunk.story.calledBy && chunk.story.calledBy.toLowerCase() !== 'n/a' && (

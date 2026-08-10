@@ -196,15 +196,14 @@ function ChunkCard({
   traceLines: Set<number>
   activeLine: number | null
 }) {
-  const depth = useStore((s) => s.depth)
   const diff = useStore((s) => s.diff)
   const rewardOnce = useGame((s) => s.rewardOnce)
 
-  const [storyOpen, setStoryOpen] = useState(depth === 'deep')
+  // The story stays behind the same reveal as in guided mode. Auto-opening it on
+  // the deep dial handed the content over for free and made the two views teach
+  // differently — the always-visible gist below carries the depth on its own.
+  const [storyOpen, setStoryOpen] = useState(false)
   const [lessonOpen, setLessonOpen] = useState(false)
-  useEffect(() => {
-    if (depth === 'deep') setStoryOpen(true)
-  }, [depth])
 
   const meta = CHANGE_META[chunk.changeKind] ?? CHANGE_META.modified
   const file = diff?.files.find((f) => f.path === chunk.file || f.oldPath === chunk.file)
