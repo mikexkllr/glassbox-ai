@@ -91,7 +91,18 @@ interface GameState {
   lastEarnAt: number
   sfxOn: boolean
   achievements: string[]
+  /**
+   * One-shot flags for the CURRENT walkthrough: lifetime/global flags merged
+   * over this walkthrough's own progress. Read-only view — write through
+   * `mark`/`rewardOnce`, which route each key to the right bucket.
+   */
   rewarded: Record<string, true>
+  /** The active walkthrough's scope key (see `setScope`). '' before a journey starts. */
+  scope: string
+  /** Lifetime flags that must never repeat across walkthroughs (quest claims). */
+  globalRewarded: Record<string, true>
+  /** scope key -> that walkthrough's one-shot flags. */
+  progress: Record<string, Record<string, true>>
   fx: Fx[]
 
   // cosmetics (the shop)
@@ -133,6 +144,8 @@ interface GameState {
   unlock: (id: string) => void
   mark: (key: string) => void
   countPrefix: (prefix: string) => number
+  setScope: (scope: string) => void
+  clearScope: (scope?: string) => void
   touchDay: () => void
   claimDaily: () => number
   recordSpin: () => void
@@ -159,6 +172,24 @@ let fxId = 1
 
 const LS_KEY = 'glassbox.profile.v1'
 
+// Quest claims are lifetime one-shots. Every other flag (`quizsolved:`,
+// `vault:`, `chest:`, `challenge:`, `story:`…) is keyed by section/chunk id
+// only — ids like "sec-auth" and "q1" recur in every walkthrough — so keeping
+// them in one profile-wide map made a brand-new walkthrough open with its
+// quizzes already answered and its vaults already cracked. Everything outside
+// this list is therefore recorded per walkthrough.
+const GLOBAL_PREFIXES = ['quest:']
+const isGlobalKey = (key: string): boolean => GLOBAL_PREFIXES.some((p) => key.startsWith(p))
+
+/** Bucket for pre-scoping progress: still counts for stats/quests, applies to no walkthrough. */
+const LEGACY_SCOPE = '__legacy__'
+
+const viewOf = (
+  globalRewarded: Record<string, true>,
+  progress: Record<string, Record<string, true>>,
+  scope: string
+): Record<string, true> => ({ ...globalRewarded, ...(progress[scope] ?? {}) })
+
 function load(): Partial<GameState> {
   try {
     const raw = localStorage.getItem(LS_KEY)
@@ -177,6 +208,35 @@ function comboMultiplier(combo: number): number {
 export const useGame = create<GameState>((set, get) => {
   const saved = load()
 
+  // Migrate a pre-scoping profile: quest claims stay lifetime, everything else
+  // moves to the legacy bucket so stats and quest progress survive while no
+  // current walkthrough inherits it. Idempotent — persist() no longer writes
+  // the flat `rewarded` map, so this runs at most once.
+  const savedGlobal: Record<string, true> = {}
+  const savedLegacy: Record<string, true> = {}
+  for (const key of Object.keys(saved.rewarded ?? {})) {
+    if (isGlobalKey(key)) savedGlobal[key] = true
+    else savedLegacy[key] = true
+  }
+  const initialGlobal = { ...(saved.globalRewarded ?? {}), ...savedGlobal }
+  const initialProgress = { ...(saved.progress ?? {}) }
+  if (Object.keys(savedLegacy).length > 0) {
+    initialProgress[LEGACY_SCOPE] = { ...(initialProgress[LEGACY_SCOPE] ?? {}), ...savedLegacy }
+  }
+
+  // Record a one-shot flag in its bucket and refresh the merged view.
+  const recordKey = (key: string) => {
+    const s = get()
+    if (isGlobalKey(key)) {
+      const globalRewarded: Record<string, true> = { ...s.globalRewarded, [key]: true }
+      set({ globalRewarded, rewarded: viewOf(globalRewarded, s.progress, s.scope) })
+    } else {
+      const bucket: Record<string, true> = { ...(s.progress[s.scope] ?? {}), [key]: true }
+      const progress: Record<string, Record<string, true>> = { ...s.progress, [s.scope]: bucket }
+      set({ progress, rewarded: viewOf(s.globalRewarded, progress, s.scope) })
+    }
+  }
+
   const persist = () => {
     const s = get()
     localStorage.setItem(
@@ -188,7 +248,8 @@ export const useGame = create<GameState>((set, get) => {
         bestCombo: s.bestCombo,
         sfxOn: s.sfxOn,
         achievements: s.achievements,
-        rewarded: s.rewarded,
+        globalRewarded: s.globalRewarded,
+        progress: s.progress,
         streak: s.streak,
         bestStreak: s.bestStreak,
         lastActiveDay: s.lastActiveDay,
@@ -216,7 +277,10 @@ export const useGame = create<GameState>((set, get) => {
     lastEarnAt: 0,
     sfxOn: saved.sfxOn ?? true,
     achievements: saved.achievements ?? [],
-    rewarded: saved.rewarded ?? {},
+    scope: '',
+    globalRewarded: initialGlobal,
+    progress: initialProgress,
+    rewarded: viewOf(initialGlobal, initialProgress, ''),
     fx: [],
 
     boosts: saved.boosts ?? {},
@@ -306,7 +370,7 @@ export const useGame = create<GameState>((set, get) => {
 
     rewardOnce: (key, base, opts) => {
       if (get().rewarded[key]) return 0
-      set((s) => ({ rewarded: { ...s.rewarded, [key]: true } }))
+      recordKey(key)
       return get().award(base, opts)
     },
 
@@ -412,11 +476,40 @@ export const useGame = create<GameState>((set, get) => {
 
     mark: (key) => {
       if (get().rewarded[key]) return
-      set((s) => ({ rewarded: { ...s.rewarded, [key]: true } }))
+      recordKey(key)
       persist()
     },
 
-    countPrefix: (prefix) => Object.keys(get().rewarded).filter((k) => k.startsWith(prefix)).length,
+    // Lifetime count across every walkthrough — quests and the stats tab ask
+    // "how many quizzes have you ever aced", not "in this walkthrough".
+    countPrefix: (prefix) => {
+      const s = get()
+      let n = Object.keys(s.globalRewarded).filter((k) => k.startsWith(prefix)).length
+      for (const bucket of Object.values(s.progress)) {
+        n += Object.keys(bucket).filter((k) => k.startsWith(prefix)).length
+      }
+      return n
+    },
+
+    // Point the one-shot flags at a specific walkthrough (the session key, so
+    // the same branches at the same commits resume where you left off).
+    setScope: (scope) => {
+      const s = get()
+      if (s.scope === scope) return
+      set({ scope, rewarded: viewOf(s.globalRewarded, s.progress, scope) })
+    },
+
+    // Drop a walkthrough's progress — used when its sections are discarded, so
+    // the regenerated ones aren't pre-solved by the old ones' ids.
+    clearScope: (scope) => {
+      const s = get()
+      const target = scope ?? s.scope
+      if (!target) return
+      const progress = { ...s.progress }
+      delete progress[target]
+      set({ progress, rewarded: viewOf(s.globalRewarded, progress, s.scope) })
+      persist()
+    },
 
     touchDay: () => {
       const today = todayStr()
@@ -473,7 +566,8 @@ export const useGame = create<GameState>((set, get) => {
 
     resetProfile: () => {
       set({
-        coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [], rewarded: {},
+        coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [],
+        rewarded: {}, globalRewarded: {}, progress: {},
         streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0, bugsCaught: 0,
         boosts: {}, owned: [], equipped: { ...DEFAULT_EQUIPPED }, srs: {}, bestTimes: {}
       })

@@ -271,7 +271,7 @@ function ConfirmDialog({
         <p className="mt-2 text-[13px] leading-relaxed text-gray-300">
           {isReset
             ? 'This wipes your game progress — coins, XP, level, streak, achievements, cosmetics, reviews — AND the cached walkthrough, then sends you back to the start. This cannot be undone.'
-            : 'This discards the current AI overview and sections and re-runs the agent on these branches. Your coins and progress stay.'}
+            : 'This discards the current AI overview and sections and re-runs the agent on these branches. Your coins, XP and achievements stay — but the new sections start unplayed, so this walkthrough’s quizzes, vaults and chests reset.'}
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onCancel} className="no-drag rounded-lg border border-ink-700 px-4 py-2 text-[13px] text-gray-300 hover:border-ink-600">

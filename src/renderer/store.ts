@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import * as Sentry from '@sentry/electron/renderer'
+import { useGame } from './game/store'
 import type {
   AgentEvent,
   ChatMessage,
@@ -168,6 +169,11 @@ export const useStore = create<State>((set, get) => {
   const enterJourney = async (diff: DiffSummary) => {
     const key = sessionKeyOf(diff)
     const saved = await window.glassbox.loadSession(key)
+    // Point the game's one-shot flags (quizzes solved, vaults cracked, chests
+    // opened) at THIS walkthrough. Section ids like "sec-auth" and quiz ids
+    // like "q1" repeat across repos, so an unscoped profile would open a fresh
+    // walkthrough with everything already played.
+    useGame.getState().setScope(key)
     set({
       diff,
       screen: 'walkthrough',
@@ -342,12 +348,16 @@ export const useStore = create<State>((set, get) => {
   },
 
   backToOnboarding() {
+    useGame.getState().setScope('')
     set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
   },
 
   // Discard the cached AI walkthrough for the current branches and re-run it.
   async regenerate() {
     if (!get().diff) return
+    // The old sections are gone, so their play state must go too — the agent
+    // reuses ids like "sec-auth"/"q1", which would otherwise land pre-solved.
+    useGame.getState().clearScope()
     set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
     persist(get) // overwrite the cached session so a reopen also regenerates
     await get().ensureOverview()
