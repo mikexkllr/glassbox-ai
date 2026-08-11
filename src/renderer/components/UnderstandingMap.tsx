@@ -31,6 +31,7 @@ export default function UnderstandingMap() {
   const viewMode = useStore((s) => s.viewMode)
   const slideIndex = useStore((s) => s.slideIndex)
   const setSlide = useStore((s) => s.setSlide)
+  const jumpToGuided = useStore((s) => s.jumpToGuided)
   const rewarded = useGame((s) => s.rewarded)
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -41,14 +42,17 @@ export default function UnderstandingMap() {
   const done = plans.filter((p) => walked.includes(p.id)).length
   const pct = total ? Math.round((done / total) * 100) : 0
   const present = viewMode === 'presentation'
+  const guided = viewMode === 'guided'
 
   const goSection = (id: string, idx: number) => {
     setSectionOpen(id, true)
+    if (guided) return jumpToGuided(id)
     if (present) setSlide(idx + 1)
     else setTimeout(() => document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40)
   }
   const goChunk = (sectionId: string, idx: number, chunk: WalkChunk) => {
     setSectionOpen(sectionId, true)
+    if (guided) return jumpToGuided(sectionId, chunk.id)
     if (present) setSlide(idx + 1)
     setTimeout(
       () => document.getElementById(`chunk-${sectionId}-${chunk.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
@@ -57,6 +61,14 @@ export default function UnderstandingMap() {
   }
   const goLine = (sectionId: string, idx: number, file: string, line: number) => {
     setSectionOpen(sectionId, true)
+    // Guided has no line anchors — land on the block that contains the line, whose
+    // code window renders it, rather than doing nothing at all.
+    if (guided) {
+      const owner = sections[sectionId]?.chunks.find(
+        (c) => c.file === file && line >= c.startLine && line <= c.endLine
+      )
+      return jumpToGuided(sectionId, owner?.id)
+    }
     if (present) setSlide(idx + 1)
     setTimeout(() => {
       const el = document.getElementById(`line-${file}-${line}`)
@@ -90,7 +102,7 @@ export default function UnderstandingMap() {
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
         {plans.length > 0 && (
           <button
-            onClick={() => setSlide(0)}
+            onClick={() => (guided ? jumpToGuided(null) : setSlide(0))}
             className={cn(
               'no-drag flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-ink-800/60',
               present && slideIndex === 0 && 'bg-glass-accent/10'

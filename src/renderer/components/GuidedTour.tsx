@@ -135,6 +135,32 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
   const clamped = Math.min(pos, beats.length - 1)
   const beat = beats[clamped]
 
+  // The Understanding Map navigates the scroll view by scrolling to a DOM id.
+  // Guided renders one beat at a time and has no such ids, so it resolves the
+  // map's clicks to a beat index instead — otherwise every entry in that whole
+  // sidebar tree is a dead click here.
+  const guidedTarget = useStore((s) => s.guidedTarget)
+  useEffect(() => {
+    if (!guidedTarget) return
+    const { sectionId, chunkId } = guidedTarget
+    if (!sectionId) {
+      setPos(0)
+      return
+    }
+    const i = beats.findIndex((b) =>
+      chunkId
+        ? b.kind === 'chunk' && b.plan.id === sectionId && b.chunk.id === chunkId
+        : (b.kind === 'intro' || b.kind === 'load') && b.plan.id === sectionId
+    )
+    // A block whose section hasn't been generated yet still has a load beat.
+    const fallback =
+      i < 0 && chunkId
+        ? beats.findIndex((b) => (b.kind === 'intro' || b.kind === 'load') && b.plan.id === sectionId)
+        : -1
+    const next = i >= 0 ? i : fallback
+    if (next >= 0) setPos(next)
+  }, [guidedTarget, beats])
+
   // Whether the current beat is "engaged" enough to move on.
   const engaged = (b: Beat): boolean => {
     switch (b.kind) {
