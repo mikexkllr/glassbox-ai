@@ -13,7 +13,7 @@ import type {
 const api: GlassboxApi = {
   platform: process.platform,
   pickRepo: () => ipcRenderer.invoke('repo:pick'),
-  listBranches: (repoPath) => ipcRenderer.invoke('repo:branches', repoPath),
+  listBranches: (repoPath, doFetch) => ipcRenderer.invoke('repo:branches', repoPath, doFetch),
   computeDiff: (repoPath, base, feature) => ipcRenderer.invoke('repo:diff', repoPath, base, feature),
   computeTopicSnapshot: (repoPath, topic, branch) =>
     ipcRenderer.invoke('repo:topic', repoPath, topic, branch),

@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/electron/renderer'
 import { useGame } from './game/store'
 import type {
   AgentEvent,
+  BranchInfo,
   ChatMessage,
   DiffSummary,
   Overview,
@@ -61,10 +62,16 @@ interface State {
 
   // repo selection
   repoPath: string | null
-  branches: string[]
+  branches: BranchInfo[]
   base: string
   feature: string
   busyDiff: boolean
+  /** A `git fetch` + re-list is in flight (kicked off on repo pick, or by the picker's fetch button). */
+  fetchingBranches: boolean
+  /** Unix ms of the last successful fetch, so the picker can show how stale the remote data is. */
+  fetchedAt: number | null
+  /** Why the last fetch failed (offline, no remote), if it did. */
+  fetchError: string | null
 
   // how the next journey starts: compare two branches, or explore a topic/question
   journeyMode: 'pr' | 'topic'
@@ -122,6 +129,8 @@ interface State {
   openSettings: (open: boolean) => void
 
   pickRepo: () => Promise<void>
+  /** Re-read the branch list; `doFetch` updates remote-tracking refs first. */
+  refreshBranches: (doFetch?: boolean) => Promise<void>
   setBase: (b: string) => void
   setFeature: (f: string) => void
   setJourneyMode: (m: 'pr' | 'topic') => void
@@ -228,6 +237,9 @@ export const useStore = create<State>((set, get) => {
   base: '',
   feature: '',
   busyDiff: false,
+  fetchingBranches: false,
+  fetchedAt: null,
+  fetchError: null,
 
   journeyMode: 'pr',
   topic: '',
@@ -287,12 +299,46 @@ export const useStore = create<State>((set, get) => {
   async pickRepo() {
     const repoPath = await window.glassbox.pickRepo()
     if (!repoPath) return
-    set({ repoPath, error: null })
+    set({ repoPath, error: null, branches: [], base: '', feature: '', fetchedAt: null, fetchError: null })
     try {
-      const { branches, current, defaultBase } = await window.glassbox.listBranches(repoPath)
-      set({ branches, feature: current, base: defaultBase })
+      // List local refs first so the picker is usable immediately — `git fetch`
+      // on a big repo takes seconds, and the branches someone wants are usually
+      // already local. The fetch then lands in the background and re-lists.
+      const { branches, current, defaultBase } = await window.glassbox.listBranches(repoPath, false)
+      set({ branches, feature: current || branches[0]?.name || '', base: defaultBase })
     } catch (e) {
       set({ error: `Not a git repo or no branches: ${(e as Error).message}` })
+      return
+    }
+    void get().refreshBranches(true)
+  },
+
+  async refreshBranches(doFetch = true) {
+    const { repoPath } = get()
+    if (!repoPath || get().fetchingBranches) return
+    set({ fetchingBranches: true })
+    try {
+      const res = await window.glassbox.listBranches(repoPath, doFetch)
+      // A fetch takes seconds; if the user picked a different repo meanwhile,
+      // this result belongs to the old one and must not overwrite the new list.
+      if (get().repoPath !== repoPath) {
+        set({ fetchingBranches: false })
+        return
+      }
+      // Only fall back to defaults when the picked branch vanished (deleted,
+      // pruned) — a refresh must never silently re-point a deliberate choice.
+      const names = new Set(res.branches.map((b) => b.name))
+      const { base, feature } = get()
+      set({
+        branches: res.branches,
+        base: names.has(base) ? base : res.defaultBase,
+        feature: names.has(feature) ? feature : res.current || res.branches[0]?.name || '',
+        fetchedAt: res.fetched ? res.fetchedAt : get().fetchedAt,
+        fetchError: res.fetchError,
+        fetchingBranches: false
+      })
+    } catch (e) {
+      set({ fetchingBranches: false, fetchError: (e as Error).message })
     }
   },
 

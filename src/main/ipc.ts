@@ -56,7 +56,9 @@ export function registerIpc(): void {
     return res.canceled || !res.filePaths[0] ? null : res.filePaths[0]
   })
 
-  handle('repo:branches', async (_e, repoPath: string) => listBranches(repoPath))
+  handle('repo:branches', async (_e, repoPath: string, doFetch?: boolean) =>
+    listBranches(repoPath, doFetch ?? true)
+  )
 
   handle('repo:diff', async (_e, repoPath: string, base: string, feature: string) =>
     computeDiff(repoPath, base, feature)

@@ -172,6 +172,9 @@ body {
 @keyframes gb-spin { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
 .gb-spin { animation: gb-spin 18s linear infinite; }
 
+/* the branch picker's fetch spinner */
+.gb-spin-fast { animation: gb-spin 0.9s linear infinite; }
+
 /* scrolling brainrot ticker */
 @keyframes gb-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 .gb-marquee { animation: gb-marquee 18s linear infinite; }

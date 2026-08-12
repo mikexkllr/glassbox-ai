@@ -1,6 +1,8 @@
 import { simpleGit, type SimpleGit } from 'simple-git'
 import parseDiff from 'parse-diff'
 import type {
+  BranchInfo,
+  BranchList,
   DiffSummary,
   DiffFile,
   DiffHunk,
@@ -32,11 +34,14 @@ function git(repoPath: string): SimpleGit {
  * tree — so this can't clobber a dirty checkout. Best-effort: repos with no
  * remote, or no network, just fall back to whatever refs are already local.
  */
-async function fetchAll(g: SimpleGit): Promise<void> {
+async function fetchAll(g: SimpleGit): Promise<string | null> {
   try {
     await g.fetch(['--all', '--prune'])
+    return null
   } catch (e) {
-    console.warn(`[glassbox] git fetch failed, using local refs: ${(e as Error).message}`)
+    const message = (e as Error).message
+    console.warn(`[glassbox] git fetch failed, using local refs: ${message}`)
+    return message
   }
 }
 
@@ -56,9 +61,18 @@ async function resolveFreshRef(g: SimpleGit, ref: string): Promise<string> {
       return ''
     }
   })()
-  // Only a bare branch name (not already `origin/...`, a raw sha, or `HEAD`)
-  // can have a same-named remote-tracking counterpart worth comparing.
-  if (!local || ref.includes('/') || ref === 'HEAD') return local
+  // Only a *local branch* can have a same-named remote-tracking counterpart
+  // worth comparing — an `origin/...` ref, a raw sha or `HEAD` cannot. Testing
+  // for a slash instead would exclude every `feature/x` branch, i.e. most of
+  // them. `for-each-ref` exits 0 and prints nothing when nothing matches, so
+  // there's no exit-code ambiguity to fall foul of.
+  if (!local || ref === 'HEAD') return local
+  try {
+    const asLocalBranch = await g.raw(['for-each-ref', '--format=%(refname)', `refs/heads/${ref}`])
+    if (!asLocalBranch.trim()) return local
+  } catch {
+    return local
+  }
 
   let remote = ''
   try {
@@ -82,27 +96,140 @@ async function resolveFreshRef(g: SimpleGit, ref: string): Promise<string> {
   return mergeBase === local ? remote : local
 }
 
-export async function listBranches(
-  repoPath: string
-): Promise<{ branches: string[]; current: string; defaultBase: string }> {
+/** Field separator for `for-each-ref` output — safe inside commit subjects. */
+const REF_SEP = '\x1f'
+const REF_FORMAT = [
+  '%(refname)',
+  '%(objectname)',
+  '%(committerdate:unix)',
+  '%(HEAD)',
+  '%(upstream:short)',
+  '%(contents:subject)'
+].join(REF_SEP)
+
+/**
+ * Ahead/behind is one git process per branch, so only ask when the answer can
+ * be non-zero (tips differ) and stop after this many — a repo with hundreds of
+ * stale branches shouldn't stall the picker. Uncompared branches simply show no
+ * divergence badge.
+ */
+const MAX_AHEAD_BEHIND = 60
+
+async function aheadBehind(
+  g: SimpleGit,
+  local: string,
+  upstream: string
+): Promise<{ ahead: number; behind: number }> {
+  try {
+    // `--left-right --count A...B` prints "<only in A>\t<only in B>".
+    const out = await g.raw(['rev-list', '--left-right', '--count', `${local}...${upstream}`])
+    const [ahead, behind] = out.trim().split(/\s+/).map((n) => Number(n) || 0)
+    return { ahead: ahead ?? 0, behind: behind ?? 0 }
+  } catch {
+    return { ahead: 0, behind: 0 } // unrelated histories, missing ref — don't guess
+  }
+}
+
+/**
+ * Enumerate every local and remote-tracking branch, each annotated with its tip
+ * commit and — for local branches — how far it has drifted from its remote
+ * counterpart. The picker needs all of it up front: which refs exist on both
+ * sides, which local branch is behind origin, and how stale each one is.
+ *
+ * `doFetch` is opt-out because fetching a large repo takes seconds; the UI
+ * lists local refs instantly first, then re-lists once the fetch lands.
+ */
+export async function listBranches(repoPath: string, doFetch = true): Promise<BranchList> {
   const g = git(repoPath)
-  await fetchAll(g)
-  const summary = await g.branch(['-a'])
-  const local = summary.all.filter((b) => !b.startsWith('remotes/'))
-  // Surface remote-only branches (e.g. a PR never checked out locally) as
-  // `origin/foo`, deduped against any local branch of the same name.
-  const remote = summary.all
-    .filter((b) => b.startsWith('remotes/') && !b.endsWith('/HEAD'))
-    .map((b) => b.slice('remotes/'.length))
-    .filter((b) => !local.includes(b.slice(b.indexOf('/') + 1)))
-  const branches = [...local, ...remote]
-  const current = summary.current
+  const fetchError = doFetch ? await fetchAll(g) : null
+
+  const raw = await g.raw(['for-each-ref', `--format=${REF_FORMAT}`, 'refs/heads', 'refs/remotes'])
+
+  const locals: BranchInfo[] = []
+  const remotes: BranchInfo[] = []
+  let current = ''
+
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue
+    const [refname, sha, committed, head, upstream, ...subjectParts] = line.split(REF_SEP)
+    // `origin/HEAD` is a symref alias for the remote's default branch, not a
+    // branch of its own — listing it would duplicate e.g. `origin/main`.
+    if (!refname || refname.endsWith('/HEAD')) continue
+
+    const isLocal = refname.startsWith('refs/heads/')
+    const name = refname.replace(/^refs\/(heads|remotes)\//, '')
+    const remote = isLocal ? null : name.slice(0, name.indexOf('/'))
+    const info: BranchInfo = {
+      name,
+      short: isLocal ? name : name.slice(name.indexOf('/') + 1),
+      kind: isLocal ? 'local' : 'remote',
+      remote,
+      current: head === '*',
+      sha,
+      subject: subjectParts.join(REF_SEP),
+      committedAt: (Number(committed) || 0) * 1000,
+      upstream: isLocal ? upstream || null : null,
+      ahead: 0,
+      behind: 0
+    }
+    if (info.current) current = name
+    ;(isLocal ? locals : remotes).push(info)
+  }
+
+  const remoteByName = new Map(remotes.map((r) => [r.name, r]))
+  const localNames = new Set(locals.map((l) => l.name))
+  for (const r of remotes) r.hasLocal = localNames.has(r.short)
+
+  // Compare each local branch against its configured upstream, falling back to
+  // a same-named `origin/<branch>` — that fallback is what `resolveFreshRef`
+  // uses when computing the diff, so the badge matches what actually gets read.
+  const pending: BranchInfo[] = []
+  for (const l of locals) {
+    const counterpart =
+      (l.upstream && remoteByName.get(l.upstream)) || remoteByName.get(`origin/${l.name}`) || null
+    if (!counterpart) {
+      l.upstream = null
+      continue
+    }
+    l.upstream = counterpart.name
+    if (counterpart.sha !== l.sha) pending.push(l)
+  }
+
+  const compared = pending
+    .sort((a, b) => b.committedAt - a.committedAt)
+    .slice(0, MAX_AHEAD_BEHIND)
+  await Promise.all(
+    compared.map(async (l) => {
+      const { ahead, behind } = await aheadBehind(g, l.sha, remoteByName.get(l.upstream!)!.sha)
+      l.ahead = ahead
+      l.behind = behind
+    })
+  )
+
+  // Current branch first, then most-recently-committed — the branches someone
+  // actually wants to diff are nearly always the ones touched last.
+  const byRecency = (a: BranchInfo, b: BranchInfo): number => b.committedAt - a.committedAt
+  const branches = [
+    ...locals.filter((l) => l.current),
+    ...locals.filter((l) => !l.current).sort(byRecency),
+    ...remotes.sort(byRecency)
+  ]
+
+  const names = branches.map((b) => b.name)
   // Prefer main/master/develop as the default base.
   const defaultBase =
-    ['main', 'master', 'develop', 'trunk'].find((b) => branches.includes(b)) ??
-    branches.find((b) => b !== current) ??
+    ['main', 'master', 'develop', 'trunk'].find((b) => names.includes(b)) ??
+    names.find((b) => b !== current) ??
     current
-  return { branches, current, defaultBase }
+
+  return {
+    branches,
+    current,
+    defaultBase,
+    fetched: doFetch && !fetchError,
+    fetchError,
+    fetchedAt: Date.now()
+  }
 }
 
 function kindFor(f: parseDiff.File): FileChangeKind {

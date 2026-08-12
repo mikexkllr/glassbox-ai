@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { useGame, rankTitle } from '../game/store'
 import { play } from '../game/sfx'
 import { cn } from '../lib/files'
+import BranchPicker, { BranchFetchButton, BranchSync } from './BranchPicker'
 
 export default function Onboarding() {
   const repoPath = useStore((s) => s.repoPath)
@@ -121,7 +122,7 @@ export default function Onboarding() {
 
             {repoPath && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                <Step n={2} label="pick your quest 🧭">
+                <Step n={2} label="pick your quest 🧭" aside={<BranchFetchButton />}>
                   <div className="mb-2 flex items-center gap-1 rounded-full border border-ink-700 bg-ink-900/60 p-0.5">
                     {(
                       [
@@ -145,41 +146,21 @@ export default function Onboarding() {
                   {journeyMode === 'pr' ? (
                     branches.length > 0 && (
                       <>
-                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                          <select value={base} onChange={(e) => setBase(e.target.value)} className="select no-drag">
-                            {branches.map((b) => (
-                              <option key={b} value={b}>
-                                {b}
-                              </option>
-                            ))}
-                          </select>
-                          <span className="text-[16px]">🆚</span>
-                          <select value={feature} onChange={(e) => setFeature(e.target.value)} className="select no-drag">
-                            {branches.map((b) => (
-                              <option key={b} value={b}>
-                                {b}
-                              </option>
-                            ))}
-                          </select>
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                          <BranchPicker label="base — what you got" value={base} onChange={setBase} />
+                          <span className="pb-2 text-[16px]">🆚</span>
+                          <BranchPicker label="feature — the new sauce" value={feature} onChange={setFeature} />
                         </div>
-                        <p className="mt-1 text-[11px] text-ink-600">base (what you got) → feature (the new sauce)</p>
+                        <BranchSync names={[base, feature]} />
                       </>
                     )
                   ) : (
                     <>
                       {branches.length > 0 && (
-                        <>
-                          <select value={base} onChange={(e) => setBase(e.target.value)} className="select no-drag mb-2 w-full">
-                            {branches.map((b) => (
-                              <option key={b} value={b}>
-                                {b}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="-mt-1.5 mb-2 text-[11px] text-ink-600">
-                            branch to ask about — freshest commits pulled automatically
-                          </p>
-                        </>
+                        <div className="mb-2">
+                          <BranchPicker label="branch to ask about" value={base} onChange={setBase} />
+                          <BranchSync names={[base]} />
+                        </div>
                       )}
                       <input
                         value={topic}
@@ -412,7 +393,18 @@ function Ticker() {
   )
 }
 
-function Step({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
+function Step({
+  n,
+  label,
+  aside,
+  children
+}: {
+  n: number
+  label: string
+  /** Optional right-aligned control in the step header (e.g. the fetch button). */
+  aside?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div className="mb-4">
       <div className="mb-1.5 flex items-center gap-2">
@@ -420,6 +412,7 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
           {n}
         </span>
         <span className="text-[12.5px] font-semibold text-gray-200">{label}</span>
+        {aside && <span className="ml-auto">{aside}</span>}
       </div>
       {children}
     </div>

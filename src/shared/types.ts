@@ -38,6 +38,59 @@ export interface DiffFile {
   hunks: DiffHunk[]
 }
 
+// ---------------------------------------------------------------------------
+// Branches
+// ---------------------------------------------------------------------------
+
+/**
+ * One selectable ref in the branch picker. Local branches and remote-tracking
+ * branches are both listed (a local `feature` and `origin/feature` are separate
+ * entries) so the reader can diff either side explicitly instead of guessing
+ * which one git will resolve.
+ */
+export interface BranchInfo {
+  /** The ref as passed to git: `main` or `origin/feature-x`. */
+  name: string
+  /** Display name with any remote prefix stripped: `feature-x`. */
+  short: string
+  kind: 'local' | 'remote'
+  /** Remote name for remote-tracking refs (`origin`), null for local ones. */
+  remote: string | null
+  /** True for the branch currently checked out in the working tree. */
+  current: boolean
+  sha: string
+  /** Subject line of the tip commit. */
+  subject: string
+  /** Tip commit time, unix ms — used for recency sorting and "2d ago". */
+  committedAt: number
+  /**
+   * For a local branch, the remote-tracking ref it's compared against: its
+   * configured upstream, or `origin/<name>` when one exists. Null when the
+   * branch only exists locally (nothing to be ahead of).
+   */
+  upstream: string | null
+  /** Commits this local branch has that its upstream doesn't. */
+  ahead: number
+  /** Commits the upstream has that this local branch doesn't. */
+  behind: number
+  /** For a remote ref: whether a local branch of the same name exists. */
+  hasLocal?: boolean
+}
+
+/** Result of enumerating a repo's branches, plus how fresh the remote data is. */
+export interface BranchList {
+  branches: BranchInfo[]
+  /** Checked-out branch name, or '' in a detached HEAD. */
+  current: string
+  defaultBase: string
+  /** Whether this listing was preceded by a successful `git fetch`. */
+  fetched: boolean
+  /** Why the fetch failed (offline, no remote, auth), if it did. */
+  fetchError: string | null
+  /** Unix ms the listing was produced. */
+  fetchedAt: number
+}
+
 /**
  * How a journey was started: 'pr' walks a branch-vs-branch diff; 'topic' walks
  * the codebase at one commit, guided by a question ("how does auth work?").
@@ -447,7 +500,8 @@ export interface GlassboxApi {
   /** The host OS, e.g. 'darwin' | 'win32' | 'linux'. */
   platform: string
   pickRepo: () => Promise<string | null>
-  listBranches: (repoPath: string) => Promise<{ branches: string[]; current: string; defaultBase: string }>
+  /** Enumerate branches. `doFetch` updates remote-tracking refs first (slow); pass false for an instant local listing. */
+  listBranches: (repoPath: string, doFetch?: boolean) => Promise<BranchList>
   computeDiff: (repoPath: string, base: string, feature: string) => Promise<DiffSummary>
   /** Snapshot of the repo pinned to `branch` (freshly fetched; defaults to current HEAD if omitted), seeded with a question/topic (topic journey). */
   computeTopicSnapshot: (repoPath: string, topic: string, branch?: string) => Promise<DiffSummary>
