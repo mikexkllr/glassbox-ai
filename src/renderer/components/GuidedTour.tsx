@@ -12,6 +12,7 @@ import SectionVault from './MiniGame'
 import CodingChallenge from './CodingChallenge'
 import LootChest from './LootChest'
 import AgentStatus from './AgentStatus'
+import ArchRecon, { ARCH_DONE_KEY, buildArchRounds } from './ArchRecon'
 import LessonMode from './LessonMode'
 import WhyThis from './WhyThis'
 import TrailChip from './InvestigationTrail'
@@ -29,6 +30,7 @@ const EMPTY = new Set<number>()
 
 type Beat =
   | { kind: 'overview'; key: string }
+  | { kind: 'arch'; key: string }
   | { kind: 'load'; key: string; plan: SectionPlan; sIdx: number }
   | { kind: 'intro'; key: string; plan: SectionPlan; section: WalkthroughSection; sIdx: number }
   | { kind: 'chunk'; key: string; plan: SectionPlan; section: WalkthroughSection; chunk: WalkChunk }
@@ -54,9 +56,13 @@ function vaultPlayable(section: WalkthroughSection): boolean {
 
 function buildBeats(
   plans: SectionPlan[],
-  sections: Record<string, WalkthroughSection>
+  sections: Record<string, WalkthroughSection>,
+  hasArch: boolean
 ): Beat[] {
   const beats: Beat[] = [{ kind: 'overview', key: 'overview' }]
+  // The architecture guess comes before any section — the model you commit to
+  // up front is what the rest of the tour confirms or breaks.
+  if (hasArch) beats.push({ kind: 'arch', key: 'arch' })
   plans.forEach((plan, sIdx) => {
     const section = sections[plan.id]
     if (!section) {
@@ -91,6 +97,8 @@ function describeBeat(beat: Beat): string {
     case 'overview':
     case 'finale':
       return 'The big-picture overview of the whole change.'
+    case 'arch':
+      return 'The architecture recon — high-level guesses about the shape of the system, its data structures and the order things happen in, made before reading any section.'
     case 'load':
       return `Section "${beat.plan.title}" (still loading).`
     case 'intro':
@@ -114,7 +122,15 @@ function describeBeat(beat: Beat): string {
   }
 }
 
-export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => void; onHunt: (section: string) => void }) {
+export default function GuidedTour({
+  onCashout,
+  onHunt,
+  onArcade
+}: {
+  onCashout: () => void
+  onHunt: (section: string) => void
+  onArcade: () => void
+}) {
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
   const live = useStore((s) => s.live)
@@ -128,8 +144,10 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
 
+  const diff = useStore((s) => s.diff)
   const plans = overview?.sections ?? []
-  const beats = useMemo(() => buildBeats(plans, sections), [overview, sections])
+  const hasArch = useMemo(() => buildArchRounds(overview, diff).length > 0, [overview, diff])
+  const beats = useMemo(() => buildBeats(plans, sections, hasArch), [overview, sections, hasArch])
 
   const [pos, setPos] = useState(0)
   const clamped = Math.min(pos, beats.length - 1)
@@ -164,6 +182,8 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
   // Whether the current beat is "engaged" enough to move on.
   const engaged = (b: Beat): boolean => {
     switch (b.kind) {
+      case 'arch':
+        return !!rewarded[ARCH_DONE_KEY]
       case 'chunk':
         return !!rewarded[`story:${b.chunk.file}:${b.chunk.id}`]
       case 'insight':
@@ -277,9 +297,11 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
           <span className="w-24 text-right font-mono text-[10.5px] text-ink-600">
             {beat?.kind === 'overview'
               ? 'Big picture'
-              : beat?.kind === 'finale'
-                ? 'Wrap-up'
-                : `Section ${sectionNo}/${plans.length}`}
+              : beat?.kind === 'arch'
+                ? 'Recon'
+                : beat?.kind === 'finale'
+                  ? 'Wrap-up'
+                  : `Section ${sectionNo}/${plans.length}`}
           </span>
         </div>
       </div>
@@ -295,7 +317,7 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.24 }}
             >
-              {beat && <BeatView beat={beat} onCashout={onCashout} onHunt={onHunt} />}
+              {beat && <BeatView beat={beat} onCashout={onCashout} onHunt={onHunt} onArcade={onArcade} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -316,6 +338,9 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
           {!canAdvance && beat?.kind === 'chunk' && <span className="ml-2 text-glass-warm">reveal to continue</span>}
           {!canAdvance && beat?.kind === 'insight' && (
             <span className="ml-2 text-glass-warm">pull the lever to continue</span>
+          )}
+          {!canAdvance && beat?.kind === 'arch' && (
+            <span className="ml-2 text-glass-warm">finish the recon to continue</span>
           )}
         </div>
         <div className="w-[150px] text-right">
@@ -345,10 +370,22 @@ export default function GuidedTour({ onCashout, onHunt }: { onCashout: () => voi
 // Beat renderers
 // ---------------------------------------------------------------------------
 
-function BeatView({ beat, onCashout, onHunt }: { beat: Beat; onCashout: () => void; onHunt: (section: string) => void }) {
+function BeatView({
+  beat,
+  onCashout,
+  onHunt,
+  onArcade
+}: {
+  beat: Beat
+  onCashout: () => void
+  onHunt: (section: string) => void
+  onArcade: () => void
+}) {
   switch (beat.kind) {
     case 'overview':
       return <OverviewBeat />
+    case 'arch':
+      return <ArchBeat />
     case 'load':
       return <LoadBeat plan={beat.plan} sIdx={beat.sIdx} />
     case 'intro':
@@ -370,7 +407,7 @@ function BeatView({ beat, onCashout, onHunt }: { beat: Beat; onCashout: () => vo
     case 'done':
       return <DoneBeat plan={beat.plan} section={beat.section} sIdx={beat.sIdx} />
     case 'finale':
-      return <FinaleBeat onCashout={onCashout} />
+      return <FinaleBeat onCashout={onCashout} onArcade={onArcade} />
   }
 }
 
@@ -422,6 +459,24 @@ function OverviewBeat() {
       <p className="mt-6 text-[13px] text-ink-600">
         {overview.sections.length} sections ahead — press <kbd className="rounded bg-ink-800 px-1.5 py-0.5">→</kbd> to begin
       </p>
+    </div>
+  )
+}
+
+/** Guess the architecture before meeting it — the tour's only pre-code beat. */
+function ArchBeat() {
+  return (
+    <div>
+      <Eyebrow>🛰 Recon</Eyebrow>
+      <h1 className="text-[24px] font-bold leading-tight text-white">First, guess.</h1>
+      <p className="mt-3 text-[15px] leading-relaxed text-gray-200">
+        You haven't read a line yet — perfect. Call the shape of this thing now: how big it is, where the weight sits,
+        what happens in what order, what the core data actually holds. Whatever you get wrong here is what the rest of
+        the walkthrough will fix.
+      </p>
+      <div className="mt-5">
+        <ArchRecon />
+      </div>
     </div>
   )
 }
@@ -769,7 +824,7 @@ function DoneBeat({ plan, section, sIdx }: { plan: SectionPlan; section: Walkthr
   )
 }
 
-function FinaleBeat({ onCashout }: { onCashout: () => void }) {
+function FinaleBeat({ onCashout, onArcade }: { onCashout: () => void; onArcade: () => void }) {
   const topicMode = useStore((s) => s.diff?.mode === 'topic')
   return (
     <div className="py-6 text-center">
@@ -797,6 +852,14 @@ function FinaleBeat({ onCashout }: { onCashout: () => void }) {
           🎰 Cash out your verdict
         </button>
       )}
+      <div className="mt-5">
+        <button
+          onClick={onArcade}
+          className="no-drag inline-flex items-center gap-2 rounded-xl border border-glass-accent2/40 bg-glass-accent2/10 px-5 py-2.5 text-[13px] font-semibold text-glass-accent2 hover:bg-glass-accent2/20"
+        >
+          🪰 Spend it in the arcade — Bug Blaster 3D
+        </button>
+      </div>
     </div>
   )
 }

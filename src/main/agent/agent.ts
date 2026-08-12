@@ -171,6 +171,15 @@ async function invokeUntilSubmitted(
 // Overview + section plan
 // ---------------------------------------------------------------------------
 
+/**
+ * Appended to both overview prompts. The recon is played before any section, so
+ * it has to be answerable from the big picture alone — no line-level trivia.
+ */
+const ARCH_BRIEF = `Finally, fill in archChallenge — a "guess first" warm-up the reader plays BEFORE reading any section, to commit to a mental model of the system at 10,000 feet and find out where it's wrong:
+- stages: 3-6 steps of the main flow in the REAL order (the reader sorts them shuffled). Use concrete stages from this codebase, e.g. "the renderer asks the main process for a diff over IPC" — never generic filler like "input"/"process"/"output". Leave empty if nothing here is a sequence.
+- flowLabel: one short phrase naming that sequence.
+- questions: 2-4 multiple-choice questions about ARCHITECTURE, not lines of code — the shape of the system, the core data structures and what they actually hold, which layer owns what, which way the dependencies point, where the design is fragile. Every wrong option must be plausible to someone who hasn't read the code, and every answer must be grounded in what you actually found while investigating.`
+
 export async function generateOverview(
   diff: DiffSummary,
   emit: (e: AgentEvent) => void
@@ -206,8 +215,10 @@ Explore the repository with the repo_* tools (start with repo_ls and repo_grep f
 - whatGist/whatDeep: a direct plain-language answer to the question, grounded in what you found
 - why: why the code is designed this way / what problem it solves
 - highlights: 3-6 bullet takeaways
-- sections: a logical top-down learning path through the relevant code (aim for 2-7 sections, each focused on one part of the answer — e.g. entry point, core logic, storage, edge cases). Each section needs an id, title, one-line teaser, and the repo-relative files it covers. Only include files that actually exist and matter to the question.`
-    : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.`
+- sections: a logical top-down learning path through the relevant code (aim for 2-7 sections, each focused on one part of the answer — e.g. entry point, core logic, storage, edge cases). Each section needs an id, title, one-line teaser, and the repo-relative files it covers. Only include files that actually exist and matter to the question.
+
+${ARCH_BRIEF}`
+    : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.\n\n${ARCH_BRIEF}`
 
   emit({ kind: 'status', scope, message: topicMode ? 'Charting the journey…' : 'Forming the big picture…' })
   const res: any = await invokeUntilSubmitted(agent, prompt, () => captured !== null, 'submit_overview', RECURSION_LIMIT)

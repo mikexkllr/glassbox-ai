@@ -188,12 +188,52 @@ const sectionPlan = z.object({
   files: z.array(z.string()).describe('Repo-relative files belonging to this section.')
 })
 
+const archQuestion = z
+  .object({
+    id: z.string().describe('Short stable id, e.g. "a1".'),
+    facet: z
+      .enum(['shape', 'data', 'flow', 'boundary', 'risk'])
+      .describe(
+        'shape = how the system is structured; data = the core data structures and what they hold; flow = what happens in what order; boundary = which layer owns what / which way dependencies point; risk = where the design is fragile.'
+      ),
+    question: z.string().describe('A HIGH-LEVEL question about the architecture — never about a specific line.'),
+    options: z.array(z.string()).min(2).max(4).describe('2-4 options. The wrong ones must be plausible to someone who has not read the code.'),
+    correctIndex: z.number().int().describe('0-based index of the correct option.'),
+    explanation: z.string().describe('Why the right answer is right — the mental model the reader should walk away with.')
+  })
+  // An out-of-range index makes the question unanswerable, and the guided tour
+  // gates progress on answering it — so reject it here rather than trap the reader.
+  .refine((q) => q.correctIndex >= 0 && q.correctIndex < q.options.length, {
+    message: 'correctIndex must point at one of the options.',
+    path: ['correctIndex']
+  })
+
+const archChallenge = z.object({
+  flowLabel: z
+    .string()
+    .optional()
+    .describe('What the stages describe, e.g. "one diff, from branch pick to rendered walkthrough".'),
+  stages: z
+    .array(z.string())
+    .default([])
+    .describe(
+      '3-6 stages of the main flow, IN THE REAL ORDER (the reader gets them shuffled and sorts them). Name concrete stages from THIS codebase, not generic ones like "input"/"process"/"output". Empty array if there is no meaningful sequence.'
+    ),
+  questions: z
+    .array(archQuestion)
+    .default([])
+    .describe('2-4 questions about the architecture at 10,000 feet. Empty array is fine.')
+})
+
 export const overviewSchema = z.object({
   title: z.string().describe('A concise title for the whole change.'),
   whatGist: z.string().describe('ONE plain sentence: what this PR does.'),
   whatDeep: z.string().describe('A short paragraph: what this PR does, in plain language.'),
   why: z.string().describe('Why this change exists / the problem it solves.'),
   highlights: z.array(z.string()).default([]).describe('3-6 high-level bullet highlights. Empty array is fine.'),
+  archChallenge: archChallenge
+    .optional()
+    .describe('The guess-first architecture warm-up the reader plays before any section. Omit only if you truly could not form a big-picture model.'),
   sections: z
     .array(sectionPlan)
     .describe('A logical breakdown of the change into walkthrough sections, top-down.')

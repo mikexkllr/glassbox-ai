@@ -9,10 +9,13 @@ import SkillTree from './SkillTree'
 import Coin3D from './Coin3D'
 import { cn } from '../lib/files'
 
-type Tab = 'daily' | 'quests' | 'games' | 'review' | 'shop' | 'slots' | 'skills' | 'stats'
+type Tab = 'games' | 'daily' | 'quests' | 'review' | 'shop' | 'slots' | 'skills' | 'stats'
 
-export default function Arcade({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('daily')
+/** Games first, and the landing tab — the 3D arcade was the least findable thing here. */
+const TABS: Tab[] = ['games', 'daily', 'quests', 'review', 'shop', 'slots', 'skills', 'stats']
+
+export default function Arcade({ onClose, initialTab = 'games' }: { onClose: () => void; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab)
   return (
     <div data-overlay className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
       <motion.div
@@ -22,12 +25,17 @@ export default function Arcade({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
-          <h2 className="flex items-center gap-2 text-[17px] font-bold text-white">🕹️ Arcade</h2>
+          <h2 className="flex items-center gap-2 text-[17px] font-bold text-white">
+            🕹️ Arcade
+            <span className="rounded bg-glass-accent2/20 px-1.5 py-0.5 text-[9.5px] font-black tracking-wide text-glass-accent2">
+              3D
+            </span>
+          </h2>
           <button onClick={onClose} className="no-drag text-ink-600 hover:text-white">✕</button>
         </div>
 
         <div className="flex flex-wrap gap-1 border-b border-ink-800 px-3 py-2">
-          {(['daily', 'quests', 'games', 'review', 'shop', 'slots', 'skills', 'stats'] as Tab[]).map((t) => (
+          {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}

@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { useGame } from '../game/store'
 import UnderstandingMap from './UnderstandingMap'
 import OverviewCard from './OverviewCard'
+import ArchRecon from './ArchRecon'
 import SectionCard from './SectionCard'
 import ChatPanel from './ChatPanel'
 import DepthDial from './DepthDial'
@@ -35,6 +36,8 @@ export default function Walkthrough() {
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
+  const mark = useGame((s) => s.mark)
+  const seenArcade = useGame((s) => !!s.rewarded['seen:arcade'])
   const resetProfile = useGame((s) => s.resetProfile)
 
   const [checkout, setCheckout] = useState(false)
@@ -51,6 +54,10 @@ export default function Walkthrough() {
 
   // Cashing out now leads through the "PR Wrapped" recap, which then mints the verdict.
   const openCashout = () => setWrapped(true)
+  const openArcade = () => {
+    mark('seen:arcade')
+    setArcade(true)
+  }
 
   const total = overview?.sections.length ?? 0
   const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
@@ -138,11 +145,18 @@ export default function Walkthrough() {
             🌊
           </button>
           <button
-            onClick={() => setArcade(true)}
-            title="Arcade — games, shop, slots, quests"
-            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
+            onClick={openArcade}
+            title="Arcade — Bug Blaster 3D, code games, slots, shop, quests"
+            className="no-drag relative rounded-lg border border-glass-accent2/40 bg-glass-accent2/10 px-3 py-1.5 text-[12.5px] font-medium text-glass-accent2 hover:bg-glass-accent2/20"
           >
-            🕹️
+            🕹️ Games
+            {/* One-time nudge: the 3D arcade was buried behind an unlabelled icon. */}
+            {!seenArcade && (
+              <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-glass-warm opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-glass-warm" />
+              </span>
+            )}
           </button>
           <button
             onClick={() => setBoss(true)}
@@ -184,13 +198,14 @@ export default function Walkthrough() {
         <UnderstandingMap />
 
         {viewMode === 'guided' ? (
-          <GuidedTour onCashout={openCashout} onHunt={(section) => setHunt({ section })} />
+          <GuidedTour onCashout={openCashout} onHunt={(section) => setHunt({ section })} onArcade={openArcade} />
         ) : viewMode === 'presentation' ? (
           <Presentation />
         ) : (
           <main className="min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl space-y-4 p-6">
               <OverviewCard />
+              <ArchRecon />
               {overview?.sections.map((plan, i) => (
                 <SectionCard key={plan.id} plan={plan} index={i} />
               ))}

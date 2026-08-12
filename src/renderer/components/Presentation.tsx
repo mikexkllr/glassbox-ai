@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store'
 import OverviewCard from './OverviewCard'
+import ArchRecon from './ArchRecon'
 import SectionCard from './SectionCard'
 import { cn } from '../lib/files'
 
@@ -70,6 +71,9 @@ export default function Presentation() {
               {atOverview ? (
                 <>
                   <OverviewCard />
+                  <div className="mt-4">
+                    <ArchRecon />
+                  </div>
                   <p className="mt-6 text-center text-[13px] text-ink-600">
                     {plans.length} sections ahead — press <kbd className="rounded bg-ink-800 px-1.5 py-0.5">→</kbd> or Next to begin
                   </p>

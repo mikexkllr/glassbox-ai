@@ -55,7 +55,13 @@ export default function GamesHub() {
         <button
           key={c.id}
           onClick={() => setGame(c.id)}
-          className="no-drag flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-850/50 p-3 text-left hover:border-glass-accent/50"
+          className={cn(
+            'no-drag flex items-center gap-3 rounded-xl border p-3 text-left',
+            // The 3D game is the headliner — it shouldn't look like another list row.
+            c.badge === '3D'
+              ? 'border-glass-accent2/50 bg-gradient-to-r from-glass-accent2/15 to-transparent hover:border-glass-accent2'
+              : 'border-ink-700 bg-ink-850/50 hover:border-glass-accent/50'
+          )}
         >
           <span className="text-[26px]">{c.emoji}</span>
           <span>

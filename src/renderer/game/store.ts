@@ -56,6 +56,7 @@ export interface Achievement {
 
 const ACHIEVEMENTS: Record<string, Achievement> = {
   first_section: { id: 'first_section', label: 'First steps', emoji: '👣' },
+  recon: { id: 'recon', label: 'Recon (called the architecture)', emoji: '🛰' },
   quiz_ace: { id: 'quiz_ace', label: 'Quiz Ace', emoji: '🧠' },
   hot_streak: { id: 'hot_streak', label: 'On fire (x5 combo)', emoji: '🔥' },
   big_brain: { id: 'big_brain', label: 'Big Brain (scored 90+)', emoji: '🤯' },
@@ -178,7 +179,10 @@ const LS_KEY = 'glassbox.profile.v1'
 // them in one profile-wide map made a brand-new walkthrough open with its
 // quizzes already answered and its vaults already cracked. Everything outside
 // this list is therefore recorded per walkthrough.
-const GLOBAL_PREFIXES = ['quest:']
+// 'seen:' marks one-time discovery nudges (e.g. the arcade's "new" dot). They
+// are lifetime, not per-walkthrough — a hint you've already taken shouldn't
+// come back on the next PR.
+const GLOBAL_PREFIXES = ['quest:', 'seen:']
 const isGlobalKey = (key: string): boolean => GLOBAL_PREFIXES.some((p) => key.startsWith(p))
 
 /** Bucket for pre-scoping progress: still counts for stats/quests, applies to no walkthrough. */

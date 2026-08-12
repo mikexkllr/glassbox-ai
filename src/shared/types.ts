@@ -305,6 +305,33 @@ export interface QuizQuestion {
   explanation: string
 }
 
+/** What an architecture question probes. */
+export type ArchFacet = 'shape' | 'data' | 'flow' | 'boundary' | 'risk'
+
+export interface ArchQuestion {
+  id: string
+  facet: ArchFacet
+  question: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+}
+
+/**
+ * The guess-first warm-up played BEFORE any section: the system at 10,000 feet —
+ * its shape, the data structures it moves around, the order things happen in.
+ * The point is to commit to a mental model (and find out where it's wrong)
+ * before reading a single line of the diff.
+ */
+export interface ArchChallenge {
+  /** What the stages describe, e.g. "one diff, from branch pick to rendered walkthrough". */
+  flowLabel?: string
+  /** 3-6 stages of the main flow, in the real order — shuffled for the reader to sort. */
+  stages: string[]
+  /** High-level multiple-choice guesses about the architecture. */
+  questions: ArchQuestion[]
+}
+
 /** Result of the AI scoring a user's free-text answer. */
 export interface ScoreResult {
   score: number // 0-100
@@ -361,6 +388,8 @@ export interface Overview {
   why: string
   /** High-level bullet highlights. */
   highlights: string[]
+  /** The architecture warm-up shown before the sections. Absent on older cached sessions. */
+  archChallenge?: ArchChallenge
   sections: SectionPlan[]
 }
 
