@@ -237,6 +237,14 @@ export interface ChunkStory {
 /** 'context' = not part of a diff — existing code explored in a topic journey. */
 export type ChunkChangeKind = 'added' | 'modified' | 'removed' | 'context'
 
+/** A "predict before you read" question about one block, asked while only its code is visible. */
+export interface ChunkCheck {
+  question: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+}
+
 export interface WalkChunk extends CodeAnchor {
   id: string
   title: string
@@ -245,6 +253,8 @@ export interface WalkChunk extends CodeAnchor {
   /** One always-visible line: what changed here (shown even in gist mode). */
   gist: string
   story: ChunkStory
+  /** The lesson's question for this block. Absent on older cached sessions — lessons fall back to a gist question. */
+  check?: ChunkCheck
 }
 
 export type SymbolKind = 'variable' | 'function' | 'type' | 'constant' | 'parameter' | 'import' | 'other'

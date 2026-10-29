@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useGame, XP_PER_LEVEL, rankTitle } from '../game/store'
+import { useGame, XP_PER_LEVEL, DAILY_GOAL_XP, rankTitle } from '../game/store'
 import { coinGlyph } from '../game/cosmetics'
 import { POWERUPS } from '../game/powerups'
+import { cn } from '../lib/files'
 
 function useTween(value: number) {
   const [display, setDisplay] = useState(value)
@@ -31,24 +32,34 @@ export default function CoinHud() {
   const xp = useGame((s) => s.xp)
   const combo = useGame((s) => s.combo)
   const streak = useGame((s) => s.streak)
+  const safe = useGame((s) => s.streakSafeToday())
+  const xpToday = useGame((s) => s.xpToday())
   const lastEarnAt = useGame((s) => s.lastEarnAt)
-  const sfxOn = useGame((s) => s.sfxOn)
-  const toggleSfx = useGame((s) => s.toggleSfx)
   const coinId = useGame((s) => s.equipped.coin)
   const glyph = coinGlyph(coinId)
   const level = Math.floor(xp / XP_PER_LEVEL) + 1
   const pct = Math.round(((xp % XP_PER_LEVEL) / XP_PER_LEVEL) * 100)
+  const goal = Math.min(1, xpToday / DAILY_GOAL_XP)
   const shown = useTween(coins)
 
   return (
-    <div className="no-drag flex items-center gap-2">
-      {/* level + rank + xp */}
-      <div className="flex items-center gap-2 rounded-full border border-ink-700 bg-ink-850 px-2.5 py-1" title={rankTitle(level)}>
-        <span className="text-[11px] font-bold text-glass-accent">LVL {level}</span>
-        <span className="hidden text-[10px] text-ink-600 xl:inline">{rankTitle(level)}</span>
-        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-ink-800">
-          <div className="h-full rounded-full bg-glass-accent transition-all" style={{ width: `${pct}%` }} />
-        </div>
+    <div className="no-drag flex items-center gap-1.5">
+      {/* daily streak — lit once today's lesson is done */}
+      <div
+        className={cn('flex items-center gap-1 rounded-full px-2 py-1 text-[13px] font-extrabold', safe ? 'text-glass-warm' : 'text-ink-600')}
+        title={safe ? `${streak}-day streak — safe today` : streak > 0 ? `${streak}-day streak — finish a lesson today to keep it` : 'Finish a lesson to start a streak'}
+      >
+        <span className={cn(!safe && 'grayscale')}>🔥</span>
+        {streak}
+      </div>
+
+      {/* daily goal ring */}
+      <div className="flex items-center gap-1 rounded-full px-1.5 py-1" title={`Daily goal: ${xpToday}/${DAILY_GOAL_XP} XP`}>
+        <GoalRing frac={goal} />
+        <span className={cn('text-[12px] font-bold tabular-nums', goal >= 1 ? 'text-glass-warm' : 'text-gray-300')}>
+          {xpToday}
+          <span className="ml-0.5 text-[10px] font-semibold text-ink-600">XP</span>
+        </span>
       </div>
 
       {/* coins */}
@@ -56,35 +67,53 @@ export default function CoinHud() {
         id="coin-hud"
         key={coins}
         initial={{ scale: 1 }}
-        animate={{ scale: [1, 1.18, 1] }}
+        animate={{ scale: [1, 1.12, 1] }}
         transition={{ duration: 0.3 }}
-        className="flex items-center gap-1.5 rounded-full border border-glass-warm/40 bg-glass-warm/10 px-3 py-1"
+        className="flex items-center gap-1 rounded-full px-2 py-1"
+        title="Coins — spend them on your verdict, or in the arcade"
       >
-        <span className="text-[15px]">{glyph}</span>
-        <span className="font-mono text-[14px] font-bold tabular-nums text-glass-warm">{shown}</span>
+        <span className="text-[14px]">{glyph}</span>
+        <span className="font-mono text-[13px] font-bold tabular-nums text-glass-warm">{shown}</span>
       </motion.div>
 
-      {/* daily streak */}
-      {streak > 0 && (
-        <div className="flex items-center gap-1 rounded-full border border-glass-warm/30 bg-glass-warm/5 px-2 py-1 text-[12px] font-bold text-glass-warm" title={`${streak}-day streak`}>
-          🔥 {streak}
+      {/* level */}
+      <div className="flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-850 px-2.5 py-1" title={`${rankTitle(level)} — ${xp % XP_PER_LEVEL}/${XP_PER_LEVEL} XP to the next level`}>
+        <span className="text-[11px] font-bold text-glass-accent">LVL {level}</span>
+        <div className="h-1.5 w-10 overflow-hidden rounded-full bg-ink-800">
+          <div className="h-full rounded-full bg-glass-accent transition-all" style={{ width: `${pct}%` }} />
         </div>
-      )}
+      </div>
 
       {/* active power-up boosts */}
       <BoostPills />
 
-      {/* live combo + draining timer */}
+      {/* live combo + draining timer (arcade play) */}
       {combo >= 2 && <ComboMeter combo={combo} lastEarnAt={lastEarnAt} />}
-
-      <button
-        onClick={toggleSfx}
-        title={sfxOn ? 'Mute sounds' : 'Unmute sounds'}
-        className="rounded-full border border-ink-700 px-2 py-1 text-[13px] hover:border-ink-600"
-      >
-        {sfxOn ? '🔊' : '🔇'}
-      </button>
     </div>
+  )
+}
+
+function GoalRing({ frac }: { frac: number }) {
+  const r = 7
+  const c = 2 * Math.PI * r
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" className="flex-none">
+      <circle cx="9" cy="9" r={r} fill="none" stroke="#252b3a" strokeWidth="3" />
+      {frac > 0 && (
+        <circle
+          cx="9"
+          cy="9"
+          r={r}
+          fill="none"
+          stroke="#ffb86b"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - frac)}
+          transform="rotate(-90 9 9)"
+        />
+      )}
+    </svg>
   )
 }
 

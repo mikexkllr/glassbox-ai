@@ -11,9 +11,9 @@
 ![LangChain](https://img.shields.io/badge/LangChain-deepagents-ffb86b)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-2ea043.svg)
 
-**code review but it's a dopamine slot machine.** an AI agent reads the whole change, then walks you through it like a Brilliant lesson — quizzes, coins, combos, loot vaults, the works. you don't *review* the diff. you *speedrun understanding it.*
+**code review, but it's Duolingo.** an AI agent reads the whole change, then turns it into a course: a path of bite-sized lessons where you *predict* what the code does before it's explained, get instant ✅/❌ feedback, and every question you miss comes back until it sticks. you don't *review* the diff. you *speedrun understanding it.*
 
-`🪙 coins` · `🔥 combos` · `🎰 vaults` · `🧠 quizzes` · `🏅 levels` · `💯 no cap`
+`🎯 predict` · `✅ instant feedback` · `🔁 mistakes come back` · `🔥 streaks` · `🪙 coins` · `💯 no cap`
 
 </div>
 
@@ -29,6 +29,26 @@ it spins up a [LangChain **deepagents**](https://github.com/langchain-ai/deepage
 
 it is **NOT** a reviewer. **NOT** a linter. **NOT** a vibe-killing quality scorer. its only job: get the change into your head with maximum dopamine and minimum effort. 🧠⚡️
 
+## how a lesson works 🎓
+
+the change becomes a **path**: a warm-up, one lesson per section, and your verdict at the end. lessons unlock in order (or jump ahead), and the next one is prepared in the background so **Start** is instant.
+
+every lesson is a short queue of screens, and almost every screen makes you *do* something with the real code:
+
+| screen | what you do |
+|--------|-------------|
+| 🎯 **predict** | read a block of code and say what it does — *before* the explanation |
+| 📖 **learn** | then get its story: what it does, how it fits, who calls it, the gotcha |
+| 👆 **find it** | tap the line where a step happens |
+| 🔗 **match** | pair each name with what it is |
+| 🔀 **order** | put a value's journey through the code back in order |
+| 🔢 **predict the value** | what does this variable hold *here*? |
+| ✍️ **fill the gap** · **explain it** | complete an insight; explain it in your own words (AI-graded) |
+
+hit **Check** → a green or red sheet tells you why → **Continue**. miss one and it comes back before the lesson ends; it also lands in **Practice** for later. finish and you get the results screen — XP, accuracy, time — plus your streak and daily goal. keyboard all the way: `1-4` to pick, `Enter` to check/continue, `Esc` to quit.
+
+prefer a reference view? **Read** shows everything on one page, **Slides** one section at a time.
+
 ## why it goes hard 🚀
 
 - 🗺️ **big picture first** — plain-language *what* + *why* before a single line of code
@@ -36,7 +56,7 @@ it is **NOT** a reviewer. **NOT** a linter. **NOT** a vibe-killing quality score
 - 🎬 **value tracing** — watch a value *flow* through the change, line glowing as you step. cinematic.
 - 🎚️ **depth dial** — one-line gist ⇄ deep dive, with "go deeper ⤓" for a fresh on-demand investigation
 - ❓ **"wait, why this?"** — ask inline about any chunk, grounded in the real repo
-- 🧠 **quizzes + self-check** — active recall, Brilliant-style, so it actually sticks
+- 🧠 **predict → check → explain** — active recall on every screen, Brilliant-style, so it actually sticks
 - 🔍 **investigation trail** — see exactly what the agent read to explain each part
 
 ## the dopamine layer 🎰
@@ -45,15 +65,15 @@ this is the part your brain is addicted to:
 
 | 🎮 | what |
 |----|------|
-| 🪙 **coins + XP + levels** | earn for every insight, quiz, and trace. rank up: Intern → … → **Legend** |
-| 🔥 **combos + crits** | chain actions fast for multipliers, random ×2/×3 crits, screen-shake, hype banners |
-| 🎰 **hidden vaults** | coins locked behind "Decode" mini-games — prove you *get* the code to crack 'em |
-| 🕹️ **the Arcade** | daily streak 🔥, quests 🎯, slot machine 🎰, mini-games 🎮, personal-best stats 📊 |
+| 🔥 **streak + daily goal** | finish a lesson a day to keep the flame lit; fill the ⚡ daily XP ring |
+| 🪙 **coins + XP + levels** | every finished lesson pays out — more for first-try answers and perfect runs. rank up: Intern → … → **Legend** |
+| 👑 **perfect lessons** | no mistakes = a crown on that node of the path |
+| 🕹️ **the Arcade** | combos, crits, slot machine 🎰, Bug Blaster 3D, quests 🎯 — opt-in, and never inside a lesson |
+| 🎰 **hidden vaults** · 🧰 **loot chests** | in Read mode: coins locked behind "Decode" mini-games, and a chest per mastered section |
 | 🎮 **learning games** | Order the Flow · Match Up · Fill the Blank — built from the actual PR |
-| 🧰 **loot chests** | master a section, pop a chest, win a random jackpot |
-| 💸 **buy the verdict** | you can't just approve. you **cash out** coins to unlock the final Approve / Request-changes — earned, not free |
+| 💸 **buy the verdict** | you can't just approve. finish every lesson, then **cash out** coins to mint the final Approve / Request-changes — earned, not free |
 
-> tl;dr: it's a casino, but the house always wins by making you *understand the code.* 💯
+> tl;dr: it's Duolingo for diffs — and the only way to win is to *understand the code.* 💯
 
 ## 📦 install
 
@@ -118,7 +138,8 @@ single **Electron + TypeScript** codebase. no Python sidecar. three layers:
 | 🌉 **Preload** | `src/preload/` | typed `window.glassbox` bridge (context-isolated) |
 | 🎨 **Renderer** (React) | `src/renderer/` | the entire interactive walkthrough + game UI |
 
-- 🤖 **agent** — `deepagents` (`createDeepAgent`) on LangGraph, reading the *real* checked-out repo with sandboxed `repo_*` tools (`read_file`, `grep`, `glob`, `ls`, `diff`), bounded by a per-section file budget. every section comes back by **calling** `submit_walkthrough_section` — a **Zod** schema. all structure from tool-calling, *never* model-emitted JSON text. work is **lazy**: a section generates only when you open it.
+- 🤖 **agent** — `deepagents` (`createDeepAgent`) on LangGraph, reading the *real* checked-out repo with sandboxed `repo_*` tools (`read_file`, `grep`, `glob`, `ls`, `diff`), bounded by a per-section file budget. every section comes back by **calling** `submit_walkthrough_section` — a **Zod** schema, including a "predict before you read" question per code block. all structure from tool-calling, *never* model-emitted JSON text. work is **lazy**: a section generates when its lesson is next up.
+- 🎓 **lessons** — `src/renderer/lib/lessons.ts` turns a section into an exercise queue (pure, so cached walkthroughs get lessons too); `components/lesson/` plays it. see [`docs/architecture.md`](docs/architecture.md) §8.
 - 🌿 **diff** — `simple-git` computes `base...feature`; `parse-diff` structures it.
 - ✨ **code** — `shiki` tokenizes (JS regex engine — renderer CSP blocks WASM); inline explanations get mapped onto tokens to make them pokeable.
 - 🎮 **game state** — `zustand` + localStorage; SFX via the Web Audio API (no asset files, CSP-safe).

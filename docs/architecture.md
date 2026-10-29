@@ -32,14 +32,15 @@ src/
 ├── preload/
 │   └── index.ts                contextBridge → window.glassbox. The only door between the two worlds.
 ├── renderer/                   React 18 + zustand + tailwind + framer-motion. Sandboxed.
-│   ├── components/             43 files — Walkthrough, GuidedTour, SectionCard, Quiz, MiniGame…
+│   ├── components/             Walkthrough, LearnPath, SectionCard, Quiz, MiniGame…
+│   │   ├── lesson/             LessonPlayer + exercise screens (the Learn loop, §8)
 │   │   └── Walkthrough.tsx     ◂ touched — one dialog string
 │   ├── game/
 │   │   ├── store.ts            ◂ touched — the fix itself
 │   │   ├── cosmetics.ts        shop items
 │   │   ├── powerups.ts         timed boosts
 │   │   └── sfx.ts              sound packs
-│   ├── lib/                    files.ts (cn, file fetch), highlight.ts (shiki), threeStage.ts
+│   ├── lib/                    lessons.ts (exercise builder), files.ts, highlight.ts (shiki), threeStage.ts
 │   ├── App.tsx                 two screens: Onboarding | Walkthrough
 │   └── store.ts                ◂ touched — journey lifecycle wiring
 └── shared/
@@ -81,7 +82,7 @@ flowchart LR
     APP["App.tsx"]
     USTORE["store.ts<br/>journey state"]
     GSTORE["game/store.ts<br/>coins · flags"]
-    COMP["components/<br/>43 files"]
+    COMP["components/"]
     APP --> COMP
     COMP --> USTORE
     COMP --> GSTORE
@@ -254,7 +255,7 @@ flowchart TB
   Q -->|no| P["progress[scope]<br/>this walkthrough only"]
   G --> V["rewarded = merged view<br/>components read this, unchanged"]
   P --> V
-  V --> UI["Quiz · MiniGame · LootChest<br/>CodingChallenge · GuidedTour"]
+  V --> UI["Quiz · MiniGame · LootChest<br/>CodingChallenge · LessonPlayer"]
 
   C["countPrefix('quizsolved:')"] --> SUM["sums globalRewarded<br/>+ every scope"]
   SUM --> STATS["Arcade quests & stats<br/>stay lifetime"]
@@ -295,7 +296,9 @@ vaults and chests now reset with the sections.
 | `vault:<sec>` | `MiniGame.tsx` | per walkthrough |
 | `chest:<sec>` | `LootChest.tsx` | per walkthrough |
 | `challenge:<sec>` | `CodingChallenge.tsx` | per walkthrough |
-| `story:<file>:<chunk>` | `SectionCard` · `GuidedTour` | per walkthrough |
+| `story:<file>:<chunk>` | `SectionCard` · `LessonPlayer` | per walkthrough |
+| `path:done:<lesson>` · `path:perfect:<lesson>` | `LessonPlayer` | per walkthrough |
+| `path:miss:<item>` · `path:fixed:<item>` | `LessonPlayer` (Practice) | per walkthrough |
 | `insight:<sec>:<i>` | `Insights.tsx` | per walkthrough |
 | `selfcheck:<sec>` | `SelfCheck.tsx` | per walkthrough |
 | `hunt:*` | `BugHunt.tsx` | per walkthrough |
@@ -314,3 +317,38 @@ vaults and chests now reset with the sections.
   Account-level by design.
 - **Per-user profiles.** Still one profile per machine — the scope added here is per
   walkthrough, not per person. That remains open.
+
+---
+
+## 8. Learn mode — the lesson loop
+
+The default view is a Duolingo-style path rather than one long stream. Each node is a lesson;
+each lesson is a short queue of screens built by `lib/lessons.ts` from the agent's section
+payload — so cached sessions get lessons too, and nothing here calls the model except the
+optional "explain it in your own words" grader.
+
+```
+LearnPath ── warm-up (arch recon) ── lesson per section ── verdict
+   │
+   └─ LessonPlayer(queue)            Check → green / red sheet → Continue
+        learn      intro, the block's story, short insights        (no grading)
+        choice     predict a block (chunk.check), quiz, guess a value
+        tapline    find the line where a trace step happens
+        match      names ↔ what they are
+        order      put a trace (or the arch flow) in order
+        blank      fill a code symbol into an insight
+        explain    free text, AI-scored, ungraded
+```
+
+- **Predict before you read.** Every block is asked about first (`chunk.check`, a new optional
+  schema field; older sessions fall back to "which gist fits this code"), then explained.
+- **Mistakes come back.** A wrong answer re-queues the item at the end of the lesson and records
+  `path:miss:<item>`; the rail's Practice lesson replays open misses until `path:fixed:<item>`.
+  Warm-up items are guesses (`guess: true`) and are never re-queued.
+- **Calm rewards.** Lessons pay out once, on the results screen, through
+  `useGame.completeLesson` — no crits, combos or screen shake mid-lesson. That call also feeds
+  the daily goal (`DAILY_GOAL_XP`) and extends the streak, which now counts days with a finished
+  lesson rather than days the app was opened.
+- **Read mode keeps working.** Items still record the old one-shot keys (`story:`,
+  `quizsolved:`, `insight:`, `selfcheck:`, `trace:`), so mastery rings, chests and the review
+  deck in the Read/Slides views reflect what was learned in lessons.

@@ -126,7 +126,7 @@ export function buildArchRounds(overview: Overview | null, diff: DiffSummary | n
   return rounds
 }
 
-const FACET_META: Record<ArchFacet, { label: string; emoji: string }> = {
+export const FACET_META: Record<ArchFacet, { label: string; emoji: string }> = {
   shape: { label: 'Shape', emoji: '🏗' },
   data: { label: 'Data', emoji: '🧱' },
   flow: { label: 'Flow', emoji: '🔀' },

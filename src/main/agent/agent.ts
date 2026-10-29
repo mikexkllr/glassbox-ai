@@ -271,14 +271,16 @@ Files: ${plan.files.join(', ')}
 
 There is no diff — this journey explores the EXISTING code. Investigate the real repository with the repo_* tools to ground every explanation (read the listed files in full, follow imports and types, find call sites, peek at tests). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary of what this section teaches about the topic
-- the notable code chunks (the blocks a reader must see to understand this part of the answer). For EACH chunk: set changeKind to "context", give a punchy one-line "gist" of what this block does, and a story (what it does / how it fits into the answer / what calls it, plus an optional "gotcha")
+- the notable code chunks (the blocks a reader must see to understand this part of the answer). For EACH chunk: set changeKind to "context", give a punchy one-line "gist" of what this block does, a story (what it does / how it fits into the answer / what calls it, plus an optional "gotcha"), and a "check" — see LESSON QUESTIONS below
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
-- zero or more traceable values showing how a value flows through this code, with concrete example values where helpful
+- zero or more traceable values showing how a value flows through this code: each step's "line" must be the exact line where that step happens, its "label" says what happens there in plain words (without quoting the code), and give concrete example values wherever you can
 - optionally, a gentle "guess what this does first?" self-check
 - 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
 - 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
 - codingChallenge: ONE small hands-on exercise built from this section's code — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that exercises the section's key idea, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns. Only flag real problems — if the code is clean, return an empty array.
+
+LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia.
 
 Use the current line numbers of each file. Reuse the section id "${plan.id}".`
 
@@ -296,14 +298,16 @@ ${fileDiffs}
 
 Investigate the real repository with the repo_* tools to ground every explanation (read the changed files in full, follow imports and types, find call sites, peek at tests; if a diff above was truncated for size, call repo_diff for the full hunks). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary
-- the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), and a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun)
+- the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun), and a "check" — see LESSON QUESTIONS below
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
-- zero or more traceable values showing how a value flows through the change, with concrete example values where helpful
+- zero or more traceable values showing how a value flows through the change: each step's "line" must be the exact line where that step happens, its "label" says what happens there in plain words (without quoting the code), and give concrete example values wherever you can
 - optionally, a gentle "guess what this does first?" self-check
 - 2-4 "aha" insights/gotchas: the non-obvious things a sharp engineer would point out about this code
 - 1-3 quiz questions that test REAL understanding of this specific code (each with options, the correct index, and an explanation)
 - codingChallenge: ONE small hands-on exercise built from this section's change — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that makes the reader re-implement the key idea of the change, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns (e.g. non-constant-time comparisons, unhandled empty/null input, naive parsing, missing validation). For each: the file + exact line range, a severity, a short title, a VAGUE hint (points at the area to look, without giving away the answer), a deep explanation of why it's a problem, and an optional fix suggestion. Only flag real problems — if the code is clean, return an empty array. Do NOT duplicate the same point as both an insight and a finding.
+
+LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia.
 
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`
 

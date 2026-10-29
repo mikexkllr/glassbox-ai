@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { useGame } from '../game/store'
 import UnderstandingMap from './UnderstandingMap'
@@ -11,15 +11,21 @@ import CoinHud from './CoinHud'
 import ReviewCheckout from './ReviewCheckout'
 import Arcade from './Arcade'
 import Presentation from './Presentation'
-import GuidedTour from './GuidedTour'
+import LearnPath from './LearnPath'
+import LessonPlayer, { type LessonRef } from './lesson/LessonPlayer'
 import BlastRadius from './BlastRadius'
 import BossFight from './BossFight'
 import BugHunt from './BugHunt'
 import PRWrapped from './PRWrapped'
-import Mascot from './Mascot'
 import DataFlow from './DataFlow'
 import GoldenBug from './GoldenBug'
 import { cn } from '../lib/files'
+
+const VIEW_LABEL = {
+  guided: { label: '🎓 Learn', title: 'Lessons: predict, check, repeat — one idea per screen' },
+  presentation: { label: '▭ Slides', title: 'One section at a time' },
+  scroll: { label: '☰ Read', title: 'Everything on one page, for reference' }
+} as const
 
 export default function Walkthrough() {
   const overview = useStore((s) => s.overview)
@@ -36,10 +42,9 @@ export default function Walkthrough() {
 
   const rewardOnce = useGame((s) => s.rewardOnce)
   const unlock = useGame((s) => s.unlock)
-  const mark = useGame((s) => s.mark)
-  const seenArcade = useGame((s) => !!s.rewarded['seen:arcade'])
   const resetProfile = useGame((s) => s.resetProfile)
 
+  const [lesson, setLesson] = useState<LessonRef | null>(null)
   const [checkout, setCheckout] = useState(false)
   const [arcade, setArcade] = useState(false)
   const [map, setMap] = useState(false)
@@ -51,13 +56,10 @@ export default function Walkthrough() {
   const isMac = window.glassbox.platform === 'darwin'
   // Topic journeys explore existing code — there's no diff to map and no PR verdict to mint.
   const topicMode = diff?.mode === 'topic'
+  const learn = viewMode === 'guided'
 
   // Cashing out now leads through the "PR Wrapped" recap, which then mints the verdict.
   const openCashout = () => setWrapped(true)
-  const openArcade = () => {
-    mark('seen:arcade')
-    setArcade(true)
-  }
 
   const total = overview?.sections.length ?? 0
   const done = overview?.sections.filter((p) => walked.includes(p.id)).length ?? 0
@@ -83,142 +85,103 @@ export default function Walkthrough() {
         <button onClick={back} className="no-drag text-[13px] text-ink-600 hover:text-white">
           ← repos
         </button>
-        <button
-          onClick={() => setConfirm('regenerate')}
-          title="Regenerate this walkthrough with AI"
-          className="no-drag rounded-lg border border-ink-700 px-2 py-1 text-[12.5px] text-gray-300 hover:border-ink-600"
-        >
-          🔄
-        </button>
-        <button
-          onClick={() => setConfirm('reset')}
-          title="Reset — wipe your progress and this walkthrough"
-          className="no-drag rounded-lg border border-ink-700 px-2 py-1 text-[12.5px] text-gray-300 hover:border-glass-del/60"
-        >
-          🧹
-        </button>
-        <div className="text-[13px] font-medium text-white">Glassbox</div>
+        <div className="h-5 w-px bg-ink-800" />
+        <div className="text-[13px] font-semibold text-white">Glassbox</div>
         {diff && (
-          <div className="hidden max-w-[320px] truncate font-mono text-[11.5px] text-ink-600 lg:block">
+          <div className="hidden max-w-[300px] truncate font-mono text-[11.5px] text-ink-600 xl:block">
             {diff.mode === 'topic' ? <>🧭 “{diff.topic}”</> : <>{diff.base} → {diff.feature}</>}
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <CoinHud />
-          <div className="mx-1 h-5 w-px bg-ink-700" />
           <div className="no-drag flex items-center gap-1 rounded-full border border-ink-700 bg-ink-850 p-0.5">
             {(['guided', 'presentation', 'scroll'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                title={
-                  m === 'guided'
-                    ? 'Brilliant-style: one idea at a time, interact to advance'
-                    : m === 'presentation'
-                      ? 'One section at a time'
-                      : 'All sections, scroll'
-                }
+                title={VIEW_LABEL[m].title}
                 className={cn(
                   'rounded-full px-2.5 py-1 text-[12px] transition-colors',
-                  viewMode === m ? 'bg-glass-accent text-ink-950' : 'text-gray-300 hover:text-white'
+                  viewMode === m ? 'bg-glass-accent2 font-semibold text-ink-950' : 'text-gray-300 hover:text-white'
                 )}
               >
-                {m === 'guided' ? '🎓 Guided' : m === 'presentation' ? '▭ Present' : '☰ Scroll'}
+                {VIEW_LABEL[m].label}
               </button>
             ))}
           </div>
-          <DepthDial />
-          {!topicMode && (
-            <button
-              onClick={() => setMap(true)}
-              title="Blast radius — fog-of-war map of the diff"
-              className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
-            >
-              🗺️
-            </button>
-          )}
-          <button
-            onClick={() => setFlow(true)}
-            title="Data flow — watch values move through the change"
-            className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600"
-          >
-            🌊
-          </button>
-          <button
-            onClick={openArcade}
-            title="Arcade — Bug Blaster 3D, code games, slots, shop, quests"
-            className="no-drag relative rounded-lg border border-glass-accent2/40 bg-glass-accent2/10 px-3 py-1.5 text-[12.5px] font-medium text-glass-accent2 hover:bg-glass-accent2/20"
-          >
-            🕹️ Games
-            {/* One-time nudge: the 3D arcade was buried behind an unlabelled icon. */}
-            {!seenArcade && (
-              <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-glass-warm opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-glass-warm" />
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setBoss(true)}
-            title="Boss Fight — the recall gauntlet capstone"
-            className="no-drag rounded-lg border border-glass-del/40 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-glass-del/70"
-          >
-            ⚔️
-          </button>
-          <button
-            onClick={() => setHunt({})}
-            title="Bug Hunt — spot the issues a reviewer would flag"
-            className="no-drag rounded-lg border border-glass-del/40 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-glass-del/70"
-          >
-            🐛
-          </button>
+          {!learn && <DepthDial />}
+          <div className="mx-1 h-5 w-px bg-ink-700" />
+          <CoinHud />
           <button
             onClick={() => setChatOpen(!chatOpen)}
-            className={`no-drag rounded-lg border px-3 py-1.5 text-[12.5px] ${
+            className={cn(
+              'no-drag rounded-lg border px-3 py-1.5 text-[12.5px]',
               chatOpen ? 'border-glass-accent bg-glass-accent/15 text-glass-accent' : 'border-ink-700 text-gray-300 hover:border-ink-600'
-            }`}
+            )}
           >
             💬 Ask
           </button>
-          {!topicMode && (
-            <button
-              onClick={openCashout}
-              className="no-drag rounded-lg border border-glass-warm/40 bg-glass-warm/10 px-3 py-1.5 text-[12.5px] font-semibold text-glass-warm hover:bg-glass-warm/20"
-            >
-              🎰 Cash out
-            </button>
-          )}
-          <button onClick={() => openSettings(true)} className="no-drag rounded-lg border border-ink-700 px-3 py-1.5 text-[12.5px] text-gray-300 hover:border-ink-600">
-            ⚙
-          </button>
+          <MoreMenu
+            topicMode={topicMode}
+            onHunt={() => setHunt({})}
+            onBoss={() => setBoss(true)}
+            onArcade={() => setArcade(true)}
+            onMap={() => setMap(true)}
+            onFlow={() => setFlow(true)}
+            onCashout={openCashout}
+            onRegenerate={() => setConfirm('regenerate')}
+            onReset={() => setConfirm('reset')}
+            onSettings={() => openSettings(true)}
+          />
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <UnderstandingMap />
-
-        {viewMode === 'guided' ? (
-          <GuidedTour onCashout={openCashout} onHunt={(section) => setHunt({ section })} onArcade={openArcade} />
-        ) : viewMode === 'presentation' ? (
-          <Presentation />
+        {learn ? (
+          <LearnPath
+            onStart={setLesson}
+            onCashout={openCashout}
+            onHunt={() => setHunt({})}
+            onBoss={() => setBoss(true)}
+            onArcade={() => setArcade(true)}
+            onMap={() => setMap(true)}
+            onFlow={() => setFlow(true)}
+          />
         ) : (
-          <main className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl space-y-4 p-6">
-              <OverviewCard />
-              <ArchRecon />
-              {overview?.sections.map((plan, i) => (
-                <SectionCard key={plan.id} plan={plan} index={i} />
-              ))}
-              {overview && !topicMode && (
-                <CashoutCta allDone={allDone} done={done} total={total} onClick={openCashout} />
-              )}
-            </div>
-          </main>
+          <>
+            <UnderstandingMap />
+            {viewMode === 'presentation' ? (
+              <Presentation />
+            ) : (
+              <main className="min-w-0 flex-1 overflow-y-auto">
+                <div className="mx-auto max-w-3xl space-y-4 p-6">
+                  <OverviewCard />
+                  <ArchRecon />
+                  {overview?.sections.map((plan, i) => (
+                    <SectionCard key={plan.id} plan={plan} index={i} />
+                  ))}
+                  {overview && !topicMode && (
+                    <CashoutCta allDone={allDone} done={done} total={total} onClick={openCashout} />
+                  )}
+                </div>
+              </main>
+            )}
+          </>
         )}
 
         <ChatPanel />
       </div>
 
+      {lesson && (
+        <LessonPlayer
+          key={lesson.kind === 'section' ? lesson.planId : lesson.kind}
+          lesson={lesson}
+          onExit={() => setLesson(null)}
+          onHunt={(section) => {
+            setLesson(null)
+            setHunt({ section })
+          }}
+        />
+      )}
       {checkout && <ReviewCheckout onClose={() => setCheckout(false)} />}
       {arcade && <Arcade onClose={() => setArcade(false)} />}
       {map && <BlastRadius onClose={() => setMap(false)} />}
@@ -247,8 +210,96 @@ export default function Walkthrough() {
           }}
         />
       )}
-      <Mascot />
-      <GoldenBug />
+      {/* The golden bug is an Arcade side-quest — never let it scuttle across a lesson. */}
+      {!learn && <GoldenBug />}
+    </div>
+  )
+}
+
+/** Everything that isn't the lesson loop lives here, so the top bar stays calm. */
+function MoreMenu({
+  topicMode,
+  onHunt,
+  onBoss,
+  onArcade,
+  onMap,
+  onFlow,
+  onCashout,
+  onRegenerate,
+  onReset,
+  onSettings
+}: {
+  topicMode: boolean
+  onHunt: () => void
+  onBoss: () => void
+  onArcade: () => void
+  onMap: () => void
+  onFlow: () => void
+  onCashout: () => void
+  onRegenerate: () => void
+  onReset: () => void
+  onSettings: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement | null>(null)
+  const sfxOn = useGame((s) => s.sfxOn)
+  const toggleSfx = useGame((s) => s.toggleSfx)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [open])
+
+  const item = (icon: string, label: string, run: () => void, danger = false) => (
+    <button
+      key={label}
+      onClick={() => {
+        setOpen(false)
+        run()
+      }}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[13px] hover:bg-ink-800',
+        danger ? 'text-glass-del' : 'text-gray-200'
+      )}
+    >
+      <span className="w-5 text-center">{icon}</span>
+      {label}
+    </button>
+  )
+
+  return (
+    <div ref={ref} className="no-drag relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="More"
+        className={cn(
+          'rounded-lg border px-2.5 py-1.5 text-[13px] leading-none',
+          open ? 'border-glass-accent2/60 text-white' : 'border-ink-700 text-gray-300 hover:border-ink-600'
+        )}
+      >
+        •••
+      </button>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+6px)] z-[120] w-60 rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-2xl">
+          <div className="px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-600">Practice</div>
+          {item('🐛', 'Bug Hunt', onHunt)}
+          {item('⚔️', 'Boss Fight', onBoss)}
+          {!topicMode && item('🗺️', 'Blast radius', onMap)}
+          {item('🌊', 'Data flow', onFlow)}
+          {item('🕹️', 'Arcade', onArcade)}
+          {!topicMode && item('🏁', 'Mint your verdict', onCashout)}
+          <div className="my-1 h-px bg-ink-800" />
+          {item(sfxOn ? '🔊' : '🔇', sfxOn ? 'Sound on' : 'Sound off', toggleSfx)}
+          {item('⚙', 'Settings', onSettings)}
+          <div className="my-1 h-px bg-ink-800" />
+          {item('🔄', 'Regenerate walkthrough', onRegenerate)}
+          {item('🧹', 'Reset everything', onReset, true)}
+        </div>
+      )}
     </div>
   )
 }

@@ -18,6 +18,23 @@ const chunkStory = z.object({
     .describe('A subtle point, edge case, footgun, or watch-out worth knowing about this block. Optional.')
 })
 
+// The lesson asks this while the reader sees ONLY the code — before the story is
+// revealed — so they commit to a reading of the block and find out if it's right.
+const chunkCheck = z
+  .object({
+    question: z
+      .string()
+      .describe('A "predict before you read" question about this block, answerable from its code alone — e.g. what it does, what it returns for an input, why a line is there. Never trivia like line numbers.'),
+    options: z.array(z.string()).min(3).max(4).describe('3-4 short options. The wrong ones must be plausible to someone skimming the code.'),
+    correctIndex: z.number().int().describe('0-based index of the correct option.'),
+    explanation: z.string().describe('One or two sentences: why the right answer is right.')
+  })
+  // An out-of-range index makes the question unanswerable — reject it so the model fixes it.
+  .refine((c) => c.correctIndex >= 0 && c.correctIndex < c.options.length, {
+    message: 'correctIndex must point at one of the options.',
+    path: ['correctIndex']
+  })
+
 const walkChunk = z
   .object({
     id: z.string().describe('Short stable id, e.g. "chunk-1".'),
@@ -31,7 +48,10 @@ const walkChunk = z
     gist: z
       .string()
       .describe('ONE punchy line: what changed here (or, in a topic journey, what this block does). Always visible, so make it concrete and skimmable.'),
-    story: chunkStory
+    story: chunkStory,
+    check: chunkCheck
+      .optional()
+      .describe('The lesson question asked about this block before its story is shown. Strongly recommended for every chunk with real code.')
   })
   // A reversed or single-point range (e.g. both lines the same off-by-one guess)
   // silently slices to nothing in the renderer, showing a blank code block with
@@ -69,13 +89,20 @@ const selfCheck = z.object({
   answer: z.string().describe('The answer to reveal after the reader guesses or skips.')
 })
 
-const quizQuestion = z.object({
-  id: z.string().describe('Short stable id, e.g. "q1".'),
-  question: z.string().describe('A question that tests real understanding of THIS code (not trivia).'),
-  options: z.array(z.string()).min(2).max(4).describe('2-4 answer options.'),
-  correctIndex: z.number().int().describe('0-based index of the correct option.'),
-  explanation: z.string().describe('Why the correct answer is right (and others wrong).')
-})
+const quizQuestion = z
+  .object({
+    id: z.string().describe('Short stable id, e.g. "q1".'),
+    question: z.string().describe('A question that tests real understanding of THIS code (not trivia).'),
+    options: z.array(z.string()).min(2).max(4).describe('2-4 answer options.'),
+    correctIndex: z.number().int().describe('0-based index of the correct option.'),
+    explanation: z.string().describe('Why the correct answer is right (and others wrong).')
+  })
+  // Lessons won't let the reader past a question until it's answered right, so
+  // an index that points at no option would trap them — reject it here.
+  .refine((q) => q.correctIndex >= 0 && q.correctIndex < q.options.length, {
+    message: 'correctIndex must point at one of the options.',
+    path: ['correctIndex']
+  })
 
 const codingChallenge = z.object({
   id: z.string().describe('Short stable id, e.g. "ch1".'),

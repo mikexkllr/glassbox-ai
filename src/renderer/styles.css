@@ -67,6 +67,9 @@ body {
 .poke {
   border-radius: 3px;
   cursor: help;
+  /* always hinted, so "hover an underlined name" is discoverable before the hover */
+  text-decoration: underline dotted rgba(124, 156, 255, 0.55);
+  text-underline-offset: 3px;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 .poke:hover {
@@ -182,3 +185,17 @@ body {
 /* idle bob for the CTA */
 @keyframes gb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .gb-bob { animation: gb-bob 2.6s ease-in-out infinite; }
+
+/* lesson: the "find the line" exercise */
+.line-picked {
+  background: rgba(124, 156, 255, 0.2) !important;
+  box-shadow: inset 3px 0 0 #7c9cff;
+}
+.line-answer {
+  background: rgba(63, 185, 80, 0.22) !important;
+  box-shadow: inset 3px 0 0 #3fb950;
+}
+.line-wrong {
+  background: rgba(248, 81, 73, 0.2) !important;
+  box-shadow: inset 3px 0 0 #f85149;
+}

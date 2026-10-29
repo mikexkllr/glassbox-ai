@@ -16,17 +16,6 @@ import type {
 } from '@shared/types'
 
 let _toastSeq = 0
-let _guidedSeq = 0
-
-/** Where the Understanding Map wants the guided tour to land. */
-export interface GuidedTarget {
-  /** null = the big-picture overview beat. */
-  sectionId: string | null
-  /** Jump to this block's beat; omitted means the section's first beat. */
-  chunkId?: string
-  /** Bumped every request so clicking the same entry twice still re-fires. */
-  nonce: number
-}
 
 export interface SelfCheckResult {
   guess: string
@@ -91,12 +80,6 @@ interface State {
   depth: Depth
   viewMode: ViewMode
   slideIndex: number // 0 = overview, 1..N = sections[n-1]
-  /**
-   * A jump requested from the Understanding Map while in guided mode. Guided
-   * renders one beat at a time, so it cannot be navigated by scrolling to a DOM
-   * id the way the scroll/presentation views are — it resolves this to a beat.
-   */
-  guidedTarget: GuidedTarget | null
   activeTrace: ActiveTrace | null
   selfCheckRevealed: string[] // chunk/section ids revealed
   selfCheckResults: Record<string, SelfCheckResult> // persisted per section across nav
@@ -149,7 +132,6 @@ interface State {
   setSectionOpen: (id: string, open: boolean) => void
   setViewMode: (m: ViewMode) => void
   setSlide: (n: number) => void
-  jumpToGuided: (sectionId: string | null, chunkId?: string) => void
   setDepth: (d: Depth) => void
   setActiveTrace: (t: ActiveTrace | null) => void
   revealSelfCheck: (id: string) => void
@@ -218,7 +200,6 @@ export const useStore = create<State>((set, get) => {
       chatHistory: [],
       openSections: {},
       slideIndex: 0,
-      guidedTarget: null,
       selfCheckResults: {},
       challengeResults: {}
     })
@@ -255,7 +236,6 @@ export const useStore = create<State>((set, get) => {
   depth: 'deep',
   viewMode: 'guided',
   slideIndex: 0,
-  guidedTarget: null,
   activeTrace: null,
   selfCheckRevealed: [],
   selfCheckResults: {},
@@ -415,7 +395,7 @@ export const useStore = create<State>((set, get) => {
 
   backToOnboarding() {
     useGame.getState().setScope('')
-    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, guidedTarget: null, selfCheckResults: {}, challengeResults: {} })
+    set({ screen: 'onboarding', diff: null, overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], chatContext: null, openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
   },
 
   // Discard the cached AI walkthrough for the current branches and re-run it.
@@ -424,7 +404,7 @@ export const useStore = create<State>((set, get) => {
     // The old sections are gone, so their play state must go too — the agent
     // reuses ids like "sec-auth"/"q1", which would otherwise land pre-solved.
     useGame.getState().clearScope()
-    set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, guidedTarget: null, selfCheckResults: {}, challengeResults: {} })
+    set({ overview: null, sections: {}, walked: [], findings: [], live: {}, chatHistory: [], openSections: {}, slideIndex: 0, selfCheckResults: {}, challengeResults: {} })
     persist(get) // overwrite the cached session so a reopen also regenerates
     await get().ensureOverview()
   },
@@ -496,9 +476,6 @@ export const useStore = create<State>((set, get) => {
   setSlide(n) {
     const count = (get().overview?.sections.length ?? 0) + 1
     set({ slideIndex: Math.max(0, Math.min(count - 1, n)) })
-  },
-  jumpToGuided(sectionId, chunkId) {
-    set({ guidedTarget: { sectionId, chunkId, nonce: ++_guidedSeq } })
   },
 
   setDepth(d) {

@@ -15,6 +15,12 @@ interface Props {
   traceLines?: Set<number>
   /** The single line currently active in a step-through. */
   activeLine?: number | null
+  /** Lessons: hovering a symbol explains it but doesn't drip coins mid-exercise. */
+  quiet?: boolean
+  /** Makes every line a tap target (the "find the line" exercise). */
+  onLineClick?: (line: number) => void
+  /** Extra classes for a line — e.g. the picked / right / wrong line in an exercise. */
+  lineClass?: (line: number) => string | false | undefined
 }
 
 interface PopState {
@@ -24,7 +30,17 @@ interface PopState {
   pinned: boolean
 }
 
-export default function PokeableCode({ file, startLine, endLine, explanations, traceLines, activeLine }: Props) {
+export default function PokeableCode({
+  file,
+  startLine,
+  endLine,
+  explanations,
+  traceLines,
+  activeLine,
+  quiet,
+  onLineClick,
+  lineClass
+}: Props) {
   const diff = useStore((s) => s.diff)
   const depth = useStore((s) => s.depth)
   const ref = useStore((s) => s.feature)
@@ -86,6 +102,7 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
     cancelClose()
     const r = el.getBoundingClientRect()
     setPop((p) => (p?.pinned ? p : { expl, x: r.left, y: r.bottom + 6, pinned: false }))
+    if (quiet) return
     rewardOnce(`poke:${expl.file}:${expl.line}:${expl.symbol}`, 2, {
       x: r.left + r.width / 2,
       y: r.top,
@@ -113,10 +130,13 @@ export default function PokeableCode({ file, startLine, endLine, explanations, t
               <div
                 key={i}
                 id={`line-${file}-${ln}`}
+                onClick={onLineClick ? () => onLineClick(ln) : undefined}
                 className={cn(
                   'code-line flex whitespace-pre px-2',
+                  onLineClick && 'no-drag cursor-pointer',
                   glow && 'trace-glow',
-                  active && 'trace-active'
+                  active && 'trace-active',
+                  lineClass?.(ln)
                 )}
               >
                 <span className="select-none pr-4 pl-1 text-right text-ink-600" style={{ minWidth: 44 }}>

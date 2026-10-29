@@ -5,6 +5,8 @@ import { powerupById } from './powerups'
 
 export const COMBO_WINDOW_MS = 7000
 export const XP_PER_LEVEL = 400
+/** XP a day's lessons have to add up to for the daily goal — roughly one lesson. */
+export const DAILY_GOAL_XP = 250
 
 const RANKS = [
   'Intern',
@@ -119,11 +121,15 @@ interface GameState {
   // timed power-up boosts: powerup id -> expiry epoch ms
   boosts: Record<string, number>
 
-  // streak
+  // streak — consecutive days with at least one finished lesson
   streak: number
   bestStreak: number
+  /** The last day a lesson was finished (YYYY-MM-DD). */
   lastActiveDay: string
   dailyClaimedDay: string
+  /** XP earned from lessons on `dailyXpDay` — the daily-goal meter. */
+  dailyXp: number
+  dailyXpDay: string
   // lifetime stats
   spins: number
   bugsCaught: number
@@ -148,6 +154,16 @@ interface GameState {
   setScope: (scope: string) => void
   clearScope: (scope?: string) => void
   touchDay: () => void
+  /** Lesson XP earned today (0 once the day rolls over). */
+  xpToday: () => number
+  /** Whether today's lesson has already kept the streak alive. */
+  streakSafeToday: () => boolean
+  /**
+   * Pay out a finished lesson: XP + coins, counted toward the daily goal, and
+   * the streak extended. Deliberately calm — no crits, combos or screen shake;
+   * the lesson's own results screen is the celebration.
+   */
+  completeLesson: (r: { xp: number; coins: number }) => { streak: number; extended: boolean; goalReached: boolean }
   claimDaily: () => number
   recordSpin: () => void
   buyBoost: (id: string) => boolean
@@ -258,6 +274,8 @@ export const useGame = create<GameState>((set, get) => {
         bestStreak: s.bestStreak,
         lastActiveDay: s.lastActiveDay,
         dailyClaimedDay: s.dailyClaimedDay,
+        dailyXp: s.dailyXp,
+        dailyXpDay: s.dailyXpDay,
         spins: s.spins,
         bugsCaught: s.bugsCaught,
         boosts: s.boosts,
@@ -298,6 +316,8 @@ export const useGame = create<GameState>((set, get) => {
     bestStreak: saved.bestStreak ?? 0,
     lastActiveDay: saved.lastActiveDay ?? '',
     dailyClaimedDay: saved.dailyClaimedDay ?? '',
+    dailyXp: saved.dailyXp ?? 0,
+    dailyXpDay: saved.dailyXpDay ?? '',
     spins: saved.spins ?? 0,
     bugsCaught: saved.bugsCaught ?? 0,
 
@@ -515,14 +535,46 @@ export const useGame = create<GameState>((set, get) => {
       persist()
     },
 
+    // A streak counts days you finished a lesson (see completeLesson) — opening
+    // the app doesn't extend it. Launch only checks whether a missed day broke it.
     touchDay: () => {
-      const today = todayStr()
       const s = get()
-      if (s.lastActiveDay === today) return
-      const diff = s.lastActiveDay ? dayDiff(s.lastActiveDay, today) : 99
-      const streak = diff === 1 ? s.streak + 1 : 1
-      set({ streak, bestStreak: Math.max(s.bestStreak, streak), lastActiveDay: today })
+      if (s.streak === 0 || !s.lastActiveDay) return
+      if (dayDiff(s.lastActiveDay, todayStr()) > 1) {
+        set({ streak: 0 })
+        persist()
+      }
+    },
+
+    xpToday: () => {
+      const s = get()
+      return s.dailyXpDay === todayStr() ? s.dailyXp : 0
+    },
+
+    streakSafeToday: () => get().lastActiveDay === todayStr() && get().streak > 0,
+
+    completeLesson: ({ xp, coins }) => {
+      const s = get()
+      const today = todayStr()
+      const gap = s.lastActiveDay ? dayDiff(s.lastActiveDay, today) : 99
+      const extended = gap !== 0 || s.streak === 0
+      const streak = gap === 0 ? Math.max(1, s.streak) : gap === 1 ? s.streak + 1 : 1
+      const before = s.xpToday()
+      const prevLevel = s.level()
+      set({
+        coins: s.coins + coins,
+        xp: s.xp + xp,
+        lifetimeCoins: s.lifetimeCoins + coins,
+        streak,
+        bestStreak: Math.max(s.bestStreak, streak),
+        lastActiveDay: today,
+        dailyXp: before + xp,
+        dailyXpDay: today
+      })
+      const level = get().level()
+      if (level > prevLevel) get().pushFx({ kind: 'levelup', amount: level })
       persist()
+      return { streak, extended, goalReached: before < DAILY_GOAL_XP && before + xp >= DAILY_GOAL_XP }
     },
 
     claimDaily: () => {
@@ -572,7 +624,7 @@ export const useGame = create<GameState>((set, get) => {
       set({
         coins: 0, xp: 0, lifetimeCoins: 0, combo: 0, bestCombo: 0, achievements: [],
         rewarded: {}, globalRewarded: {}, progress: {},
-        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', spins: 0, bugsCaught: 0,
+        streak: 0, bestStreak: 0, lastActiveDay: '', dailyClaimedDay: '', dailyXp: 0, dailyXpDay: '', spins: 0, bugsCaught: 0,
         boosts: {}, owned: [], equipped: { ...DEFAULT_EQUIPPED }, srs: {}, bestTimes: {}
       })
       setPack(DEFAULT_EQUIPPED.sound)

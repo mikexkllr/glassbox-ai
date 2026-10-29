@@ -312,10 +312,10 @@ const TOPIC_IDEAS = [
 ]
 
 const PERKS = [
-  { emoji: '🪙', text: 'earn coins' },
-  { emoji: '🎰', text: 'crack vaults' },
-  { emoji: '🔥', text: 'build combos' },
-  { emoji: '🧠', text: 'big brain' }
+  { emoji: '🎯', text: 'predict the code' },
+  { emoji: '✅', text: 'instant feedback' },
+  { emoji: '🔁', text: 'mistakes come back' },
+  { emoji: '🔥', text: 'daily streak' }
 ]
 
 function PerkRow() {
