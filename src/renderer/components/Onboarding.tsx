@@ -5,6 +5,7 @@ import { useGame, rankTitle } from '../game/store'
 import { play } from '../game/sfx'
 import { cn } from '../lib/files'
 import BranchPicker, { BranchFetchButton, BranchSync } from './BranchPicker'
+import { PROVIDER_LABELS } from '@shared/types'
 
 export default function Onboarding() {
   const repoPath = useStore((s) => s.repoPath)
@@ -237,7 +238,7 @@ export default function Onboarding() {
                 onClick={() => openSettings(true)}
                 className="no-drag rounded-xl border border-ink-700 px-4 py-3.5 text-[13px] text-gray-300 transition-colors hover:border-glass-accent/50 hover:text-white"
               >
-                ⚙ {settings?.provider ?? 'Settings'}
+                ⚙ {settings ? PROVIDER_LABELS[settings.provider] : 'Settings'}
               </button>
             </div>
           </motion.div>

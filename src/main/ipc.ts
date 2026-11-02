@@ -28,6 +28,7 @@ import { listBranches, computeDiff, computeTopicSnapshot, showFile } from './git
 import { getSettings, saveSettings } from './store/settings.js'
 import { loadSession, saveSession } from './store/cache.js'
 import { makeModel } from './agent/model.js'
+import { listModels } from './agent/catalog.js'
 import {
   generateOverview,
   generateSection,
@@ -74,17 +75,9 @@ export function registerIpc(): void {
 
   handle('settings:get', async () => getSettings())
   handle('settings:save', async (_e, s: Settings) => saveSettings(s))
-  handle('ollama:models', async (_e, baseUrl: string) => {
-    try {
-      const url = (baseUrl || 'http://localhost:11434').replace(/\/$/, '') + '/api/tags'
-      const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
-      if (!res.ok) return { ok: false, models: [], message: `HTTP ${res.status}` }
-      const data = (await res.json()) as { models?: { name: string }[] }
-      return { ok: true, models: (data.models ?? []).map((m) => m.name).sort() }
-    } catch (e) {
-      return { ok: false, models: [], message: (e as Error).message }
-    }
-  })
+  // Takes the draft settings rather than reading the saved ones, so the list
+  // reflects a key or endpoint the reader typed a moment ago.
+  handle('models:list', async (_e, draft: Settings) => listModels(draft))
 
   handle('settings:test', async () => {
     try {

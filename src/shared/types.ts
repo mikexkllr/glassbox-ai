@@ -119,30 +119,397 @@ export interface DiffSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Settings
+// Settings — the provider registry
 // ---------------------------------------------------------------------------
 
-export type Provider = 'anthropic' | 'opencodezen' | 'ollama' | 'bedrock' | 'bedrock-proxy' | 'vertex'
+export type Provider =
+  // Model providers, straight to the source
+  | 'anthropic'
+  | 'openai'
+  | 'google'
+  | 'xai'
+  | 'deepseek'
+  | 'mistral'
+  // Gateways — one key, many models
+  | 'opencodego'
+  | 'opencodezen'
+  | 'openrouter'
+  | 'github'
+  | 'groq'
+  | 'cerebras'
+  | 'together'
+  | 'fireworks'
+  // Local & bring-your-own endpoint
+  | 'ollama'
+  | 'lmstudio'
+  | 'custom'
+  // Enterprise clouds
+  | 'bedrock'
+  | 'bedrock-proxy'
+  | 'vertex'
+  | 'azure'
 
-export const PROVIDER_LABELS: Record<Provider, string> = {
-  anthropic: 'Anthropic',
-  opencodezen: 'OpenCode Zen',
-  ollama: 'Ollama',
-  bedrock: 'Bedrock',
-  'bedrock-proxy': 'Bedrock (proxy)',
-  vertex: 'Vertex'
+/**
+ * The wire protocol a provider speaks. This — not the provider id — decides
+ * which LangChain chat model gets built, which is why most new providers are a
+ * single registry entry and no new code: they all speak `openai` at a
+ * different base URL.
+ */
+export type ProviderWire =
+  /** POST {baseUrl}/chat/completions */
+  | 'openai'
+  /** POST {baseUrl}/responses */
+  | 'responses'
+  /** POST {baseUrl}/messages */
+  | 'anthropic'
+  /** Gemini generateContent */
+  | 'google'
+  | 'ollama'
+  | 'azure'
+  | 'bedrock'
+  | 'bedrock-proxy'
+  | 'vertex'
+
+/**
+ * A gateway that fronts several labs serves each model on the protocol that
+ * lab speaks, so the wire can't be a property of the provider alone. 'auto'
+ * asks the gateway's own catalog which one to use; anything else pins it.
+ */
+export type WireChoice = ProviderWire | 'auto'
+
+/** Which heading a provider sits under in the Settings picker. */
+export type ProviderGroup = 'lab' | 'gateway' | 'local' | 'cloud'
+
+export const PROVIDER_GROUPS: { id: ProviderGroup; label: string }[] = [
+  { id: 'lab', label: 'Model providers' },
+  { id: 'gateway', label: 'Gateways — one key, many models' },
+  { id: 'local', label: 'Local & custom endpoints' },
+  { id: 'cloud', label: 'Enterprise clouds' }
+]
+
+export interface ProviderSpec {
+  label: string
+  wire: ProviderWire
+  group: ProviderGroup
+  /** One line on what this provider is, shown under the picker. */
+  blurb: string
+  /** Default API base URL. Every provider with an editable endpoint has one. */
+  baseUrl?: string
+  /** Env vars consulted, in order, when no key is saved in Settings. */
+  envKeys?: string[]
+  /** Where to get a key — shown in the key field's hint. */
+  keyUrl?: string
+  /** Local servers that want no key at all. */
+  keyless?: boolean
+  /** Suggested model ids. A hint for the picker, never a closed set. */
+  models: string[]
+  /**
+   * This gateway routes each model on its lab's own protocol, so the wire is
+   * resolved per model from `{baseUrl}/v1/models` rather than fixed here.
+   */
+  multiWire?: boolean
+  /** Extra request headers this provider asks clients to send. */
+  headers?: Record<string, string>
 }
+
+/**
+ * Everything Glassbox knows about a provider. Adding an OpenAI-compatible
+ * service means adding one entry here — the model factory and the Settings
+ * screen are both driven off this table.
+ */
+export const PROVIDERS: Record<Provider, ProviderSpec> = {
+  anthropic: {
+    label: 'Anthropic',
+    wire: 'anthropic',
+    group: 'lab',
+    blurb: 'Claude, direct from Anthropic. The best results for this kind of code reading.',
+    baseUrl: 'https://api.anthropic.com',
+    envKeys: ['ANTHROPIC_API_KEY'],
+    keyUrl: 'console.anthropic.com/settings/keys',
+    models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-opus-4-8']
+  },
+  openai: {
+    label: 'OpenAI',
+    wire: 'responses',
+    group: 'lab',
+    blurb: 'GPT models on the Responses API.',
+    baseUrl: 'https://api.openai.com/v1',
+    envKeys: ['OPENAI_API_KEY'],
+    keyUrl: 'platform.openai.com/api-keys',
+    models: ['gpt-6.1-terra', 'gpt-6.1-terra-pro', 'gpt-6.1-sol', 'gpt-6-luna', 'gpt-6-astra']
+  },
+  google: {
+    label: 'Google Gemini',
+    wire: 'google',
+    group: 'lab',
+    blurb: 'Gemini through AI Studio — a generous free tier to try Glassbox on.',
+    baseUrl: 'https://generativelanguage.googleapis.com',
+    envKeys: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    keyUrl: 'aistudio.google.com/apikey',
+    models: ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.7-flash']
+  },
+  xai: {
+    label: 'xAI',
+    wire: 'openai',
+    group: 'lab',
+    blurb: 'Grok, with a large context window.',
+    baseUrl: 'https://api.x.ai/v1',
+    envKeys: ['XAI_API_KEY'],
+    keyUrl: 'console.x.ai',
+    models: ['grok-4.7', 'grok-4.6']
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    wire: 'openai',
+    group: 'lab',
+    blurb: 'Strong coding models at a low price per token.',
+    baseUrl: 'https://api.deepseek.com/v1',
+    envKeys: ['DEEPSEEK_API_KEY'],
+    keyUrl: 'platform.deepseek.com/api_keys',
+    models: ['deepseek-chat', 'deepseek-reasoner']
+  },
+  mistral: {
+    label: 'Mistral',
+    wire: 'openai',
+    group: 'lab',
+    blurb: 'Mistral and Codestral, hosted in the EU.',
+    baseUrl: 'https://api.mistral.ai/v1',
+    envKeys: ['MISTRAL_API_KEY'],
+    keyUrl: 'console.mistral.ai/api-keys',
+    models: ['mistral-large-latest', 'mistral-medium-latest', 'codestral-latest']
+  },
+
+  opencodego: {
+    label: 'OpenCode Go',
+    wire: 'openai',
+    group: 'gateway',
+    multiWire: true,
+    blurb: 'A flat monthly subscription covering ~28 coding models. Built for agents like this one.',
+    baseUrl: 'https://opencode.ai/inference/go',
+    envKeys: ['OPENCODE_GO_API_KEY', 'OPENCODE_API_KEY'],
+    keyUrl: 'opencode.ai/auth',
+    models: [
+      'kimi-k3.1-pro',
+      'gpt-6-luna',
+      'claude-haiku-5-5',
+      'grok-4.7',
+      'gemini-4-argon',
+      'glm-5.3',
+      'deepseek-v4-pro',
+      'qwen3.8-max',
+      'minimax-m3',
+      'kimi-k3',
+      'mimo-v2.6-pro',
+      'hy4-preview',
+      'longcat-2.0',
+      'beam-free'
+    ]
+  },
+  opencodezen: {
+    label: 'OpenCode Zen',
+    wire: 'openai',
+    group: 'gateway',
+    multiWire: true,
+    blurb: 'OpenCode pay-as-you-go: the full catalog, billed per request, including Opus and GPT.',
+    baseUrl: 'https://opencode.ai/inference',
+    envKeys: ['OPENCODE_ZEN_API_KEY', 'OPENCODE_API_KEY'],
+    keyUrl: 'opencode.ai/auth',
+    models: [
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'gpt-6.1-sol',
+      'gpt-6-luna',
+      'gemini-4-argon',
+      'grok-4.7',
+      'kimi-k3',
+      'glm-5.3',
+      'minimax-m3',
+      'qwen3.8-max',
+      'beam-free'
+    ]
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'Several hundred models behind one key, with per-model pricing.',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    envKeys: ['OPENROUTER_API_KEY'],
+    keyUrl: 'openrouter.ai/keys',
+    models: [
+      'anthropic/claude-opus-5.5',
+      'anthropic/claude-sonnet-5.5',
+      'openai/gpt-6.1-terra',
+      'google/gemini-4-argon',
+      'x-ai/grok-4.7',
+      'deepseek/deepseek-v4.1-flash',
+      'moonshotai/kimi-k3.1-pro',
+      'z-ai/glm-5.3'
+    ],
+    headers: { 'HTTP-Referer': 'https://github.com/mikexkllr/glassbox-ai', 'X-Title': 'Glassbox' }
+  },
+  github: {
+    label: 'GitHub Models',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'Free, rate-limited inference for anyone with a GitHub token.',
+    baseUrl: 'https://models.github.ai/inference',
+    envKeys: ['GITHUB_MODELS_TOKEN', 'GITHUB_TOKEN'],
+    keyUrl: 'github.com/settings/personal-access-tokens',
+    models: ['openai/gpt-5', 'openai/gpt-5-mini', 'xai/grok-3']
+  },
+  groq: {
+    label: 'Groq',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'Open-weight models served fast enough that prefetching whole chapters is cheap.',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    envKeys: ['GROQ_API_KEY'],
+    keyUrl: 'console.groq.com/keys',
+    models: ['moonshotai/kimi-k2-instruct', 'llama-3.3-70b-versatile', 'qwen/qwen3-32b']
+  },
+  cerebras: {
+    label: 'Cerebras',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'The same open-weight models, faster still.',
+    baseUrl: 'https://api.cerebras.ai/v1',
+    envKeys: ['CEREBRAS_API_KEY'],
+    keyUrl: 'cloud.cerebras.ai',
+    models: ['qwen-3-coder-480b', 'llama-3.3-70b']
+  },
+  together: {
+    label: 'Together',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'A broad open-weight catalog.',
+    baseUrl: 'https://api.together.xyz/v1',
+    envKeys: ['TOGETHER_API_KEY'],
+    keyUrl: 'api.together.ai/settings/api-keys',
+    models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen3-Coder-480B-A35B-Instruct']
+  },
+  fireworks: {
+    label: 'Fireworks',
+    wire: 'openai',
+    group: 'gateway',
+    blurb: 'Open-weight models with function calling.',
+    baseUrl: 'https://api.fireworks.ai/inference/v1',
+    envKeys: ['FIREWORKS_API_KEY'],
+    keyUrl: 'fireworks.ai/account/api-keys',
+    models: ['accounts/fireworks/models/kimi-k2-instruct', 'accounts/fireworks/models/qwen3-coder-480b-a35b-instruct']
+  },
+
+  ollama: {
+    label: 'Ollama',
+    wire: 'ollama',
+    group: 'local',
+    blurb: 'Models on your own machine. Nothing leaves it, and every chapter is free.',
+    baseUrl: 'http://localhost:11434',
+    keyless: true,
+    models: ['qwen3-coder', 'qwen2.5-coder', 'deepseek-coder-v2', 'llama3.1']
+  },
+  lmstudio: {
+    label: 'LM Studio',
+    wire: 'openai',
+    group: 'local',
+    blurb: "LM Studio's local server. Load a model there, then hit Load models.",
+    baseUrl: 'http://localhost:1234/v1',
+    keyless: true,
+    models: []
+  },
+  custom: {
+    label: 'OpenAI-compatible',
+    wire: 'openai',
+    group: 'local',
+    blurb: 'Any endpoint that speaks /chat/completions — vLLM, llama.cpp, LiteLLM, a corporate gateway.',
+    baseUrl: 'http://localhost:8000/v1',
+    envKeys: ['OPENAI_COMPATIBLE_API_KEY'],
+    models: []
+  },
+
+  bedrock: {
+    label: 'Bedrock',
+    wire: 'bedrock',
+    group: 'cloud',
+    blurb: 'AWS Bedrock with SigV4 credentials.',
+    keyless: true,
+    models: [
+      'anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'anthropic.claude-3-5-haiku-20241022-v1:0'
+    ]
+  },
+  'bedrock-proxy': {
+    label: 'Bedrock (proxy)',
+    wire: 'bedrock-proxy',
+    group: 'cloud',
+    blurb: 'A gateway that speaks the Bedrock Converse API but authenticates with a bearer token.',
+    envKeys: ['AWS_BEARER_TOKEN_BEDROCK'],
+    models: [
+      'anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'anthropic.claude-opus-4-1-20250805-v1:0',
+      'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'anthropic.claude-3-5-haiku-20241022-v1:0'
+    ]
+  },
+  vertex: {
+    label: 'Vertex AI',
+    wire: 'vertex',
+    group: 'cloud',
+    blurb: 'Google Cloud, authenticated by your gcloud application-default credentials.',
+    keyless: true,
+    models: ['claude-opus-4-8', 'gemini-2.0-flash', 'gemini-1.5-pro']
+  },
+  azure: {
+    label: 'Azure OpenAI',
+    wire: 'azure',
+    group: 'cloud',
+    blurb: 'An Azure OpenAI deployment. The model is your deployment name.',
+    envKeys: ['AZURE_OPENAI_API_KEY'],
+    models: []
+  }
+}
+
+export const PROVIDER_LABELS = Object.fromEntries(
+  (Object.keys(PROVIDERS) as Provider[]).map((p) => [p, PROVIDERS[p].label])
+) as Record<Provider, string>
+
+export const PROVIDER_MODELS = Object.fromEntries(
+  (Object.keys(PROVIDERS) as Provider[]).map((p) => [p, PROVIDERS[p].models])
+) as Record<Provider, string[]>
 
 export interface Settings {
   provider: Provider
   model: string
-  // Anthropic
+
+  /** API key per provider, so switching providers doesn't lose the last key. */
+  apiKeys?: Partial<Record<Provider, string>>
+  /**
+   * Base URL per provider, overriding {@link ProviderSpec.baseUrl}. For the
+   * OpenCode gateways this is the inference root — the per-protocol path
+   * (`/openai/v1`, `/anthropic/v1`, …) is appended per model.
+   */
+  baseUrls?: Partial<Record<Provider, string>>
+  /** Pin a multi-protocol gateway to one wire instead of asking its catalog. */
+  wires?: Partial<Record<Provider, WireChoice>>
+
+  // --- Legacy flat fields. Folded into the maps above when settings load, and
+  // --- still written so an older build reading the same config keeps working.
+  /** @deprecated use `apiKeys.anthropic` */
   anthropicApiKey?: string
-  // OpenCode Zen (OpenAI-compatible gateway)
+  /** @deprecated use `apiKeys.opencodezen` */
   opencodeZenApiKey?: string
+  /** @deprecated use `baseUrls.opencodezen` */
   opencodeZenBaseUrl?: string
-  // Ollama
+  /** @deprecated use `baseUrls.ollama` */
   ollamaBaseUrl?: string
+  /** @deprecated use `baseUrls['bedrock-proxy']` */
+  bedrockProxyEndpoint?: string
+  /** @deprecated use `apiKeys['bedrock-proxy']` */
+  bedrockProxyApiKey?: string
+
+  // Ollama sampling controls — genuinely Ollama-only, so not in the registry.
   ollamaNumCtx?: number
   ollamaTemperature?: number
   ollamaTopP?: number
@@ -154,13 +521,12 @@ export interface Settings {
   bedrockRegion?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
-  // Bedrock Converse via a custom endpoint + API key (e.g. a company proxy that
-  // speaks the Bedrock Converse API but authenticates with a bearer token).
-  bedrockProxyEndpoint?: string
-  bedrockProxyApiKey?: string
   // Vertex
   vertexProject?: string
   vertexLocation?: string
+  // Azure OpenAI
+  azureEndpoint?: string
+  azureApiVersion?: string
   // Investigation budget per section.
   maxFilesPerSection: number
   // Generate the next section in the background while reading the current one.
@@ -172,9 +538,10 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   provider: 'anthropic',
-  model: 'claude-opus-4-8',
-  opencodeZenBaseUrl: 'https://opencode.ai/zen/v1',
-  ollamaBaseUrl: 'http://localhost:11434',
+  model: 'claude-opus-5-5',
+  apiKeys: {},
+  baseUrls: {},
+  wires: {},
   ollamaNumCtx: 8192,
   ollamaTemperature: 0,
   ollamaTopP: 0.9,
@@ -184,32 +551,26 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaKeepAlive: '5m',
   bedrockRegion: 'us-east-1',
   vertexLocation: 'us-central1',
+  azureApiVersion: '2024-10-21',
   maxFilesPerSection: 20,
   prefetchNext: false
 }
 
-export const PROVIDER_MODELS: Record<Provider, string[]> = {
-  anthropic: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
-  opencodezen: [
-    'claude-sonnet-4-5',
-    'claude-opus-4-5',
-    'claude-haiku-4-5',
-    'gpt-5.1',
-    'gpt-5.1-codex',
-    'gpt-5',
-    'gemini-3-pro',
-    'qwen3-coder',
-    'kimi-k2-thinking'
-  ],
-  ollama: ['llama3.1', 'qwen2.5-coder', 'deepseek-coder-v2', 'codellama'],
-  bedrock: ['anthropic.claude-3-5-sonnet-20241022-v2:0', 'anthropic.claude-3-5-haiku-20241022-v1:0'],
-  'bedrock-proxy': [
-    'anthropic.claude-sonnet-4-5-20250929-v1:0',
-    'anthropic.claude-opus-4-1-20250805-v1:0',
-    'anthropic.claude-3-5-sonnet-20241022-v2:0',
-    'anthropic.claude-3-5-haiku-20241022-v1:0'
-  ],
-  vertex: ['claude-opus-4-8', 'gemini-2.0-flash', 'gemini-1.5-pro']
+/** The provider's endpoint: the user's override, else the registry default. */
+export function providerBaseUrl(settings: Settings, provider: Provider = settings.provider): string {
+  const url = settings.baseUrls?.[provider] || PROVIDERS[provider].baseUrl || ''
+  return url.replace(/\/+$/, '')
+}
+
+/** The key saved in Settings. Environment fallbacks live in the main process. */
+export function providerApiKey(settings: Settings, provider: Provider = settings.provider): string {
+  return settings.apiKeys?.[provider] ?? ''
+}
+
+/** How this provider's model should be reached, if the user pinned it. */
+export function providerWire(settings: Settings, provider: Provider = settings.provider): WireChoice {
+  const spec = PROVIDERS[provider]
+  return settings.wires?.[provider] || (spec.multiWire ? 'auto' : spec.wire)
 }
 
 // ---------------------------------------------------------------------------
@@ -520,7 +881,11 @@ export interface GlassboxApi {
   getSettings: () => Promise<Settings>
   saveSettings: (settings: Settings) => Promise<Settings>
   testModel: () => Promise<{ ok: boolean; message: string }>
-  listOllamaModels: (baseUrl: string) => Promise<{ ok: boolean; models: string[]; message?: string }>
+  /**
+   * Ask the provider configured in `settings` what it can serve. Takes the
+   * unsaved draft so the picker reflects a key/URL typed a second ago.
+   */
+  listModels: (settings: Settings) => Promise<{ ok: boolean; models: string[]; message?: string }>
 
   generateOverview: (diff: DiffSummary) => Promise<Overview>
   generateSection: (diff: DiffSummary, plan: SectionPlan) => Promise<WalkthroughSection>

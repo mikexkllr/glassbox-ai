@@ -22,7 +22,7 @@ const api: GlassboxApi = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: Settings) => ipcRenderer.invoke('settings:save', s),
   testModel: () => ipcRenderer.invoke('settings:test'),
-  listOllamaModels: (baseUrl: string) => ipcRenderer.invoke('ollama:models', baseUrl),
+  listModels: (s: Settings) => ipcRenderer.invoke('models:list', s),
 
   generateOverview: (diff: DiffSummary) => ipcRenderer.invoke('agent:overview', diff),
   generateSection: (diff: DiffSummary, plan: SectionPlan) => ipcRenderer.invoke('agent:section', diff, plan),
