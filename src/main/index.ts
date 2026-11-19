@@ -12,7 +12,8 @@ import * as Sentry from '@sentry/electron/main'
 // so it can hook into the main process lifecycle. Read consent synchronously
 // since the async settings load wouldn't resolve in time.
 if (getSettingsSync().telemetry) {
-  Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
+  // sendDefaultPii stays off: no IP address, no username, no request bodies.
+  Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE, sendDefaultPii: false })
 }
 
 function appIcon(): string | undefined {

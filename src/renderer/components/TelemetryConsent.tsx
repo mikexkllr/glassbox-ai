@@ -8,7 +8,8 @@ let sentryRendererInitialized = false
 export function initSentryRenderer() {
   if (sentryRendererInitialized) return
   sentryRendererInitialized = true
-  Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE })
+  // sendDefaultPii stays off: no IP address, no username, no request bodies.
+  Sentry.init({ dsn: SENTRY_DSN, release: SENTRY_RELEASE, sendDefaultPii: false })
 }
 
 export default function TelemetryConsent() {

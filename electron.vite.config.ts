@@ -1,9 +1,16 @@
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+// CI rewrites package.json's version before it builds, so baking it in here is
+// what lets Sentry tell one release from another.
+const version = (JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string }).version
+const define = { __APP_VERSION__: JSON.stringify(version) }
+
 export default defineConfig({
   main: {
+    define,
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
@@ -17,6 +24,7 @@ export default defineConfig({
     }
   },
   preload: {
+    define,
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
@@ -25,6 +33,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    define,
     root: 'src/renderer',
     resolve: {
       alias: {

@@ -432,7 +432,9 @@ export const useStore = create<State>((set, get) => {
       persist(get)
     } catch (e) {
       const err = e as Error
-      Sentry.captureException(err, { extra: { scope: plan.id, sectionTitle: plan.title } })
+      // No section title here: it is written by the model from the user's own
+      // code, and telemetry should not carry anything out of their repository.
+      Sentry.captureException(err, { extra: { scope: 'section' } })
       get().addToast(`"${plan.title}" failed: ${err.message}`)
       set((s) => ({
         live: {
