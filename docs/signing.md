@@ -229,6 +229,14 @@ Getting a certificate is the hard part, and it is not like Apple's:
 
 ## When it goes wrong
 
+**Xcode: `Communication with Apple failed — This operation can only be performed by the Account Holder.`**
+Your Apple ID is on the team, but as a Member or Admin. Developer ID certificates
+are the one kind only the **Account Holder** may issue, and no amount of
+permissions short of that will do. Either sign in as the Apple ID that holds the
+membership and create it there, or have that person create it and send you the
+`.p12`. Who it is: <https://developer.apple.com/account> → *Membership details*,
+or App Store Connect → *Users and Access*, where the Account Holder is marked.
+
 **`skipped macOS application code signing  reason=Identity name is specified, but no valid identity with this name in the keychain`**
 The expected one. It lists what it did find: there is no
 `Developer ID Application` certificate yet, and the pinned identity stops it from
