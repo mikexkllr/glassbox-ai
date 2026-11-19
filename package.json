@@ -30,7 +30,7 @@
     "@langchain/langgraph": "^1.4.2",
     "@langchain/ollama": "^1.2.7",
     "@langchain/openai": "^1.4.7",
-    "@sentry/electron": "^7.13.0",
+    "@sentry/electron": "^8.4.0",
     "deepagents": "^1.10.2",
     "electron-updater": "^6.3.9",
     "langchain": "^1.4.5",
