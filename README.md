@@ -91,9 +91,11 @@ grab a prebuilt installer from the [**Releases**](https://github.com/mikexkllr/g
 | 🪟 **Windows** | `Glassbox-*-win-x64.exe` (NSIS installer) |
 | 🐧 **Linux** | `Glassbox-*-linux-x86_64.AppImage` |
 
-every push to `main` ships a fresh build via GitHub Actions, and the app **auto-updates itself** in the background (Windows + Linux). on macOS, auto-update is off until the build is code-signed — pull the latest `.dmg` to update.
+every push to `main` ships a fresh build via GitHub Actions, and the app **auto-updates itself** in the background — it checks on launch and every 6h, downloads quietly, and swaps itself out when you quit (or right away if you click the notification).
 
-> first launch is unsigned, so the OS will warn you: **macOS** → right-click the app → *Open*; **Windows** → *More info* → *Run anyway*.
+macOS is the picky one: it only lets an app replace itself if that app is code-signed, so there auto-update rides on the Apple Developer ID. the release pipeline signs **and** notarizes the mac build the moment the Apple secrets are in the repo — see [**docs/signing.md**](docs/signing.md) for the one-time setup. until then the mac build ships unsigned: it runs fine, but you update it by grabbing the latest `.dmg`.
+
+> unsigned builds make the OS nervous: **macOS** → right-click the app → *Open*; **Windows** → *More info* → *Run anyway*. a signed + notarized mac build just opens.
 
 ## run it 🏃
 
@@ -105,8 +107,10 @@ npm run dev      # 🚀 launches the Electron app
 build installers yourself:
 
 ```bash
-npm run pack   # unpacked app in dist/ (fast, for testing)
-npm run dist   # full installers for the current platform
+npm run pack              # unpacked app in dist/ (fast, for testing)
+npm run dist              # full installers for the current platform
+npm run dist:mac          # mac only — signs with your Developer ID if you have one
+npm run dist:mac:unsigned # mac only — skips the keychain entirely
 ```
 
 then: **drop a repo 📁 → pick the matchup ⚔️ (base 🆚 feature) → let's gooo 🚀**

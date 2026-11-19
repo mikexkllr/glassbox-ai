@@ -1,7 +1,7 @@
 {
   "name": "glassbox",
   "version": "0.1.0",
-  "description": "Glassbox — an interactive walkthrough that makes AI-written code effortless to understand.",
+  "description": "Glassbox \u2014 an interactive walkthrough that makes AI-written code effortless to understand.",
   "main": "./out/main/index.js",
   "author": "Glassbox",
   "license": "MIT",
@@ -16,6 +16,8 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder",
+    "dist:mac": "electron-vite build && electron-builder --mac --publish never",
+    "dist:mac:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-vite build && electron-builder --mac --publish never",
     "release": "electron-vite build && electron-builder --publish always"
   },
   "dependencies": {
@@ -79,6 +81,12 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "category": "public.app-category.developer-tools",
+      "identity": "Developer ID Application",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
+      "gatekeeperAssess": false,
       "target": [
         {
           "target": "dmg",

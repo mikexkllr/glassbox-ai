@@ -33,6 +33,11 @@ jobs:
           - os: ubuntu-latest
             name: Linux
     runs-on: ${{ matrix.os }}
+    # Mapped to env here, not read inline, so the steps below can branch on
+    # whether the secrets exist: `secrets` is not available in a step `if`.
+    env:
+      MAC_SIGNED: ${{ secrets.MAC_CSC_LINK != '' }}
+      MAC_NOTARIZED: ${{ secrets.APPLE_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,10 +68,51 @@ jobs:
       # --publish always uploads installers + the latest*.yml update feeds to a
       # DRAFT GitHub Release tagged v<version>. The finalize job publishes it
       # once all three platforms have uploaded their artifacts.
+      #
+      # The CSC_*/APPLE_* vars only do anything on macOS. electron-builder
+      # imports the certificate from CSC_LINK (a base64 .p12) into a throwaway
+      # keychain, signs the app with it, then uploads it to Apple's notary
+      # service and staples the ticket. They are empty until the secrets are set
+      # up (docs/signing.md); CSC_IDENTITY_AUTO_DISCOVERY then switches signing
+      # off cleanly instead of letting the build fail halfway through.
       - name: Package & publish (${{ matrix.name }})
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.MAC_SIGNED }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Catch a half-signed mac build here rather than letting users meet it as
+      # "Glassbox is damaged" — and because an unsigned app cannot auto-update.
+      - name: Verify the macOS signature
+        if: matrix.os == 'macos-latest' && env.MAC_SIGNED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r app; do
+            found=1
+            echo "::group::$app"
+            codesign --verify --deep --strict "$app"
+            codesign -d --verbose=2 "$app" 2>&1 | grep -E '^(Authority|TeamIdentifier)='
+            if [ "${MAC_NOTARIZED}" = "true" ]; then
+              # The ticket has to be stapled into the bundle, otherwise a Mac
+              # that is offline or has never seen the app still blocks it.
+              xcrun stapler validate "$app"
+            fi
+            echo "::endgroup::"
+          done < <(find dist -maxdepth 2 -name '*.app')
+          [ "$found" = 1 ] || { echo "no .app found under dist/"; exit 1; }
+
+      - name: Note that the macOS build is unsigned
+        if: matrix.os == 'macos-latest' && env.MAC_SIGNED != 'true'
+        shell: bash
+        run: |
+          echo "::warning title=Unsigned macOS build::Set the MAC_CSC_LINK / APPLE_* secrets (see docs/signing.md). Until then macOS warns that Glassbox is from an unidentified developer, and the app cannot auto-update itself."
 
   finalize:
     needs: build

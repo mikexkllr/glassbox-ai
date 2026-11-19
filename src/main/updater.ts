@@ -1,4 +1,6 @@
 import { app, BrowserWindow, Notification } from 'electron'
+import { execFile } from 'node:child_process'
+import { dirname, resolve } from 'node:path'
 import * as Sentry from '@sentry/electron/main'
 // electron-updater is CommonJS; the main process is bundled as ESM, so a named
 // import fails at runtime ("Named export 'autoUpdater' not found"). Default-import
@@ -17,18 +19,22 @@ const { autoUpdater } = electronUpdater
  *
  * Caveats:
  * - No-op in dev (`app.isPackaged` is false) — nothing to update.
- * - macOS auto-update requires a signed + notarized build; an unsigned mac app
- *   cannot apply updates (Squirrel.Mac rejects it) and the check throws noisy
- *   "Could not get code signature" errors. We skip mac until certs exist — the
- *   block below flips on automatically once builds are signed.
+ * - On macOS, updates only run when the build is signed with a Developer ID
+ *   (see `hasDeveloperIdSignature` below and docs/signing.md).
  */
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // re-check every 6h while running
+const SIGNATURE_PROBE_TIMEOUT_MS = 10_000
 
 export function setupAutoUpdater(): void {
   if (!app.isPackaged) return
+  void begin()
+}
 
-  // Skip macOS until the app is signed + notarized (see caveat above).
-  if (process.platform === 'darwin') return
+async function begin(): Promise<void> {
+  if (process.platform === 'darwin' && !(await hasDeveloperIdSignature())) {
+    console.log('[updater] macOS build is not Developer ID signed — skipping update checks')
+    return
+  }
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
@@ -52,10 +58,14 @@ export function setupAutoUpdater(): void {
       win.webContents.send('updater:downloaded', { version: info.version })
     }
     if (Notification.isSupported()) {
-      new Notification({
+      const note = new Notification({
         title: 'Glassbox update ready',
-        body: `v${info.version} will install when you quit. ✨`
-      }).show()
+        body: `v${info.version} installs when you quit — or click here to restart now. ✨`
+      })
+      // Clicking applies it straight away; ignoring it costs nothing, since
+      // autoInstallOnAppQuit swaps the app out the next time it closes.
+      note.on('click', () => setImmediate(() => autoUpdater.quitAndInstall()))
+      note.show()
     }
   })
 
@@ -66,4 +76,36 @@ export function setupAutoUpdater(): void {
     })
   check()
   setInterval(check, CHECK_INTERVAL_MS)
+}
+
+/**
+ * Whether the running .app carries a Developer ID signature.
+ *
+ * macOS updates go through Squirrel.Mac, which refuses to swap in a new version
+ * unless the *running* app is properly signed — and it only finds that out after
+ * downloading the whole archive, leaving a wasted download and a noisy "Could
+ * not get code signature" error behind. So we ask codesign up front. `-d` only
+ * reads the signature instead of hashing the bundle, which keeps it at ~30ms,
+ * and it prints to stderr.
+ *
+ * The effect: a notarized release updates itself, while a local unsigned build
+ * (`npm run dist:mac:unsigned`) never even checks.
+ */
+function hasDeveloperIdSignature(): Promise<boolean> {
+  // …/Glassbox.app/Contents/MacOS/Glassbox → …/Glassbox.app
+  const bundle = resolve(dirname(app.getPath('exe')), '..', '..')
+  return new Promise((done) => {
+    execFile(
+      '/usr/bin/codesign',
+      ['-d', '--verbose=2', bundle],
+      { timeout: SIGNATURE_PROBE_TIMEOUT_MS },
+      (err, _stdout, stderr) => {
+        if (err) {
+          console.log('[updater] codesign probe failed:', err.message)
+          return done(false)
+        }
+        done(/^Authority=Developer ID Application/m.test(stderr))
+      }
+    )
+  })
 }

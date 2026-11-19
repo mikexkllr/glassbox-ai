@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!--
+      Entitlements for the Hardened Runtime, which Apple requires before it will
+      notarize anything. Each one buys back something Chromium needs and the
+      Hardened Runtime switches off by default — nothing more, so the app keeps
+      as few privileges as it can.
+
+      Glassbox is deliberately NOT sandboxed (no com.apple.security.app-sandbox):
+      it has to read whatever git repository you point it at, and a sandboxed app
+      can only touch what the user drags in.
+    -->
+
+    <!-- V8 compiles JavaScript to machine code at runtime. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Older V8 code paths write to executable pages without the JIT mapping. -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- Electron's helper processes start via DYLD_* env vars (ELECTRON_RUN_AS_NODE). -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+
+    <!--
+      Library validation would only load libraries signed by this same team.
+      Electron's own frameworks and any native .node module ship signed by their
+      own authors, so it stays off.
+      https://github.com/electron-userland/electron-builder/issues/3940
+    -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+  </dict>
+</plist>

@@ -28,7 +28,7 @@ src/
 │   │   └── settings.ts         config.json — provider, model, API key
 │   ├── index.ts                BrowserWindow, Sentry, worktree cleanup
 │   ├── ipc.ts                  ~20 ipcMain.handle channels, each Sentry-wrapped
-│   └── updater.ts
+│   └── updater.ts              electron-updater against GitHub Releases; on mac, gated on the signature
 ├── preload/
 │   └── index.ts                contextBridge → window.glassbox. The only door between the two worlds.
 ├── renderer/                   React 18 + zustand + tailwind + framer-motion. Sandboxed.
@@ -367,3 +367,27 @@ LearnPath ── warm-up (arch recon) ── lesson per section ── verdict
 - **Read mode keeps working.** Items still record the old one-shot keys (`story:`,
   `quizsolved:`, `insight:`, `selfcheck:`, `trace:`), so mastery rings, chests and the review
   deck in the Read/Slides views reflect what was learned in lessons.
+
+## 9. Shipping it — signing, and why mac updates hang off that
+
+`.github/workflows/release.yml` builds all three platforms on every push to `main`,
+versions them `0.1.<run_number>` so each one is strictly newer, and publishes the
+installers plus the `latest*.yml` feeds to a GitHub Release. `src/main/updater.ts`
+reads that feed, downloads in the background, and installs on quit.
+
+macOS splits off from the other two. Squirrel.Mac — the mechanism that lets an app
+replace itself in place — only proceeds if the running bundle carries a valid
+Developer ID signature, and it finds that out *after* downloading the archive. So
+`setupAutoUpdater` shells out to `codesign -d --verbose=2` first (≈30 ms, reads the
+signature rather than hashing the bundle) and looks for an
+`Authority=Developer ID Application` line. A notarized release updates itself; an
+unsigned local build never checks, instead of burning a download it cannot apply.
+
+The signing itself is entirely configuration — `build.mac` in `package.json`
+(Hardened Runtime, `build/entitlements.mac.plist`, `notarize: true`, and
+`identity` pinned to `"Developer ID Application"` so electron-builder cannot fall
+back to a certificate of the wrong kind) plus five `CSC_*`/`APPLE_*` env vars in
+the release job. Both degrade on purpose: no
+certificate means electron-builder skips signing, no Apple credentials mean it
+skips notarization, and the run still produces a working unsigned DMG with a
+warning in the summary. [docs/signing.md](signing.md) is the one-time Apple setup.
