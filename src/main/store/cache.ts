@@ -27,5 +27,10 @@ export async function loadSession(key: string): Promise<PersistedSession | null>
 export async function saveSession(session: PersistedSession): Promise<void> {
   await fs.promises.mkdir(sessionsDir(), { recursive: true })
   const file = path.join(sessionsDir(), safeName(session.key) + '.json')
-  await fs.promises.writeFile(file, JSON.stringify({ ...session, updatedAt: Date.now() }, null, 2), 'utf8')
+  // A walkthrough quotes the user's own source. Owner-only, like the config.
+  await fs.promises.writeFile(file, JSON.stringify({ ...session, updatedAt: Date.now() }, null, 2), {
+    encoding: 'utf8',
+    mode: 0o600
+  })
+  await fs.promises.chmod(file, 0o600)
 }
