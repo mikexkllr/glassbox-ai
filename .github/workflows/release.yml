@@ -84,6 +84,52 @@ jobs:
       - name: Build renderer + main
         run: npm run build
 
+      # electron-builder 25.1.8 cannot do this itself: it creates its throwaway
+      # keychain with a random password, then calls `set-key-partition-list -k`
+      # with the *.p12* password instead, and the step dies with
+      # "SecKeychainUnlock: The user name or passphrase you entered is not
+      # correct." So the keychain is prepared here, with the right password, and
+      # handed over through CSC_KEYCHAIN — which electron-builder only consults
+      # when CSC_LINK is absent (see macPackager's codeSigningInfo).
+      - name: Prepare the signing keychain (macOS)
+        if: matrix.os == 'macos-latest' && env.MAC_SIGNED == 'true'
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/glassbox-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          CERT="$RUNNER_TEMP/certificate.p12"
+          printf '%s' "$MAC_CSC_LINK" | openssl base64 -d -A > "$CERT"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MAC_CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          rm -f "$CERT"
+
+          # codesign only looks in the search list, and every existing entry has
+          # to go back as its own argument — collapsed into one string they are
+          # all lost, including the login keychain.
+          EXISTING=()
+          while IFS= read -r line; do
+            line=$(printf '%s' "$line" | sed -e 's/^[[:space:]]*"//' -e 's/"$//')
+            # An `if`, not `[ ... ] && ...`: under `set -e` the failing test on a
+            # blank line would end the step. Likewise the ${...+...} guard below,
+            # which keeps `set -u` quiet if the list comes back empty.
+            if [ -n "$line" ]; then EXISTING+=("$line"); fi
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$KEYCHAIN" ${EXISTING[@]+"${EXISTING[@]}"}
+
+          echo "Identities in the signing keychain:"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
       # --publish always uploads installers + the latest*.yml update feeds to a
       # DRAFT GitHub Release tagged v<version>. The finalize job publishes it
       # once all three platforms have uploaded their artifacts.
@@ -98,11 +144,9 @@ jobs:
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # CSC_LINK is NOT mac-only to electron-builder — on Windows it would
-          # be used as the Authenticode certificate. Hand it over on macOS only,
-          # or the day the mac secret exists the Windows build starts failing.
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          # Deliberately no CSC_LINK: that is what makes electron-builder build
+          # its own (broken) keychain instead of using the one prepared above.
+          # It would also be read as the Authenticode certificate on Windows.
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.MAC_SIGNED }}
           APPLE_ID: ${{ env.MAC_NOTARIZED == 'true' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ env.MAC_NOTARIZED == 'true' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
@@ -133,6 +177,11 @@ jobs:
             echo "::endgroup::"
           done < <(find dist -maxdepth 2 -name '*.app')
           [ "$found" = 1 ] || { echo "no .app found under dist/"; exit 1; }
+
+      - name: Remove the signing keychain
+        if: always() && matrix.os == 'macos-latest' && env.MAC_SIGNED == 'true'
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/glassbox-signing.keychain-db" || true
 
       - name: Note that the macOS build is not notarized
         if: matrix.os == 'macos-latest' && env.MAC_SIGNED == 'true' && env.MAC_NOTARIZED != 'true'
