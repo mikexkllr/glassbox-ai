@@ -172,6 +172,51 @@ result deliberately never auto-updates:
 npm run dist:mac:unsigned
 ```
 
+## Making the `.p12` without Keychain Access
+
+If you issued the certificate through the web flow, you already hold the private
+key as a file and never need the keychain:
+
+```bash
+openssl req -new -newkey rsa:2048 -nodes -keyout devid.key -out devid.csr -subj "/CN=Glassbox Developer ID/C=DE"
+```
+
+Upload `devid.csr`, download `developerID_application.cer`, then:
+
+```bash
+openssl x509 -inform DER -in developerID_application.cer -out devid.pem
+curl -fsSO https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+openssl x509 -inform DER -in DeveloperIDG2CA.cer -out DeveloperIDG2CA.pem
+```
+
+```bash
+/usr/bin/openssl pkcs12 -export -out devid.p12 -inkey devid.key -in devid.pem -certfile DeveloperIDG2CA.pem -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES
+```
+
+**Those three algorithm flags are the whole point.** OpenSSL 3 defaults to a
+modern PKCS#12 MAC that Apple's `security` cannot verify: the import dies with
+`MAC verification failed during PKCS12 import (wrong password?)` and sends you
+hunting for a typo in a password that was never wrong. macOS's own
+`/usr/bin/openssl` is LibreSSL and writes the old format, hence the full path
+above; Homebrew's `openssl` needs the flags, or `-legacy`.
+
+Check it before trusting it to CI — this imports into a throwaway keychain and
+leaves yours alone:
+
+```bash
+security create-keychain -p temp /tmp/t.keychain && security unlock-keychain -p temp /tmp/t.keychain && security import devid.p12 -k /tmp/t.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign -A && security find-identity -v -p codesigning /tmp/t.keychain && security delete-keychain /tmp/t.keychain
+```
+
+One line should come back: `Developer ID Application: <name> (<team>)`.
+
+> `codesign` only finds identities in the keychain **search list**, so signing a
+> test file with a keychain outside it fails with `no identity found` even though
+> the import worked. If you add one with `security list-keychains -d user -s`,
+> pass every existing entry back as a separate argument — collapsing them into
+> one string drops your login keychain out of the search list, and suddenly you
+> have no identities at all. `security list-keychains -d user -s ~/Library/Keychains/login.keychain-db`
+> puts it right.
+
 ## Checking a build by hand
 
 ```bash
@@ -230,12 +275,18 @@ Getting a certificate is the hard part, and it is not like Apple's:
 ## When it goes wrong
 
 **Xcode: `Communication with Apple failed — This operation can only be performed by the Account Holder.`**
-Your Apple ID is on the team, but as a Member or Admin. Developer ID certificates
-are the one kind only the **Account Holder** may issue, and no amount of
-permissions short of that will do. Either sign in as the Apple ID that holds the
-membership and create it there, or have that person create it and send you the
-`.p12`. Who it is: <https://developer.apple.com/account> → *Membership details*,
-or App Store Connect → *Users and Access*, where the Account Holder is marked.
+Xcode offers *Developer ID Application* in the certificate menu — not greyed out —
+and only tells you this after you pick it. Check who the Account Holder actually
+is before believing it: <https://developer.apple.com/account> → *Membership
+details*. On an **individual** membership there is only one person on the team and
+that person *is* the Account Holder, yet Xcode can still read the role as "Admin"
+and refuse. Seen on a perfectly ordinary individual account.
+
+The web flow does not share Xcode's opinion. Go to
+<https://developer.apple.com/account/resources/certificates/add>, pick
+*Developer ID Application*, and it issues the certificate against a CSR you
+upload. On an organization team the restriction is real, and the Account Holder
+has to do it (or send you the `.p12`).
 
 **`skipped macOS application code signing  reason=Identity name is specified, but no valid identity with this name in the keychain`**
 The expected one. It lists what it did find: there is no
