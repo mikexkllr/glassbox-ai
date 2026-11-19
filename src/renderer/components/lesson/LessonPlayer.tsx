@@ -13,6 +13,7 @@ import {
   doneKey,
   grade,
   isGraded,
+  isTeaching,
   lessonPayout,
   missKey,
   outstandingMistakes,
@@ -21,9 +22,21 @@ import {
   type Exercise,
   type Response
 } from '../../lib/lessons'
+import { useStrings, type Strings } from '../../lib/i18n'
 import AgentStatus from '../AgentStatus'
 import CodingChallenge from '../CodingChallenge'
-import { BlankEx, ChoiceEx, ExplainEx, LearnCard, LearnChunkCard, MatchEx, OrderEx, TapLineEx } from './Exercises'
+import {
+  BlankEx,
+  ChoiceEx,
+  ExplainEx,
+  IdeaCard,
+  LearnCard,
+  LearnChunkCard,
+  MatchEx,
+  MiniCard,
+  OrderEx,
+  TapLineEx
+} from './Exercises'
 import { Btn } from './ui'
 
 export type LessonRef = { kind: 'warmup' } | { kind: 'section'; planId: string } | { kind: 'practice' }
@@ -54,8 +67,7 @@ interface Results {
   goalReached: boolean
 }
 
-const PRAISE = ['Nice!', 'Correct!', 'You got it!', 'Spot on!', 'Exactly.', 'Great read!']
-const praise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)]
+const praise = (t: Strings) => t.praise[Math.floor(Math.random() * t.praise.length)]
 
 function explanationOf(ex: Exercise): string | undefined {
   return ex.kind === 'choice' ? ex.explanation : undefined
@@ -75,6 +87,7 @@ export default function LessonPlayer({
   onExit: () => void
   onHunt: (sectionId: string) => void
 }) {
+  const t = useStrings()
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
   const diff = useStore((s) => s.diff)
@@ -126,12 +139,12 @@ export default function LessonPlayer({
   useEffect(() => {
     if (queue || !overview) return
     let items: Exercise[] | null = null
-    if (lesson.kind === 'warmup') items = buildWarmupLesson(overview, diff)
+    if (lesson.kind === 'warmup') items = buildWarmupLesson(overview, diff, t)
     else if (lesson.kind === 'practice')
-      items = buildPracticeLesson(outstandingMistakes(useGame.getState().rewarded), overview, sections, diff)
+      items = buildPracticeLesson(outstandingMistakes(useGame.getState().rewarded), overview, sections, diff, t)
     else if (plan && section) {
       const loaded = plans.map((p) => sections[p.id]).filter(Boolean)
-      items = buildSectionLesson(plan, section, loaded, planIdx)
+      items = buildSectionLesson(plan, section, loaded, planIdx, t)
     }
     if (!items) return
     setQueue(items.map((ex) => ({ ex, key: `${ex.id}#0`, retry: false })))
@@ -159,7 +172,7 @@ export default function LessonPlayer({
       setInRow((n) => n + 1)
       complete(ex)
       if (sfxOn) play('correct')
-      setFb({ tone: 'right', title: praise(), explanation: explanationOf(ex) })
+      setFb({ tone: 'right', title: praise(t), explanation: explanationOf(ex) })
       return
     }
     setInRow(0)
@@ -167,12 +180,12 @@ export default function LessonPlayer({
     if (ex.guess) {
       // Warm-up guesses are allowed to be wrong — they're done, and the answer is the lesson.
       complete(ex)
-      setFb({ tone: 'neutral', title: 'Now you know', answer, explanation: explanationOf(ex) })
+      setFb({ tone: 'neutral', title: t.nowYouKnow, answer, explanation: explanationOf(ex) })
       return
     }
     mark(missKey(ex.id))
     setQueue((q) => (q ? [...q, { ex: reshuffle(ex), key: `${ex.id}#${q.length}`, retry: true }] : q))
-    setFb({ tone: 'wrong', title: 'Not quite', answer, explanation: explanationOf(ex) })
+    setFb({ tone: 'wrong', title: t.notQuite, answer, explanation: explanationOf(ex) })
   }
 
   const check = async () => {
@@ -194,7 +207,7 @@ export default function LessonPlayer({
       setVerdict(good)
       setFb({
         tone: good ? 'right' : 'neutral',
-        title: score ? `${score.score}/100 · ${score.verdict}` : "Couldn't grade that — here's a strong answer",
+        title: score ? `${score.score}/100 · ${score.verdict}` : t.couldNotGrade,
         score,
         explanation: ex.answer
       })
@@ -211,7 +224,7 @@ export default function LessonPlayer({
     if (ex.kind === 'explain') {
       setVerdict(null)
       setDoneIds((d) => (d.includes(ex.id) ? d : [...d, ex.id]))
-      setFb({ tone: 'neutral', title: "Here's a strong answer", explanation: ex.answer })
+      setFb({ tone: 'neutral', title: t.hereIsAnswer, explanation: ex.answer })
       return
     }
     setResponse(null)
@@ -220,7 +233,7 @@ export default function LessonPlayer({
 
   const next = () => {
     if (!queue || !ex) return
-    if (!locked && !isGraded(ex) && ex.kind !== 'explain') complete(ex)
+    if (!locked && isTeaching(ex)) complete(ex)
     setFb(null)
     setVerdict(null)
     setResponse(null)
@@ -292,7 +305,7 @@ export default function LessonPlayer({
     if (!ex) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (locked || ex.kind === 'learn' || ex.kind === 'learn-chunk') next()
+      if (locked || isTeaching(ex)) next()
       else if (ready) void check()
       return
     }
@@ -322,7 +335,7 @@ export default function LessonPlayer({
         {isMac && <div className="w-16" />}
         <button
           onClick={requestQuit}
-          title="Quit lesson (Esc)"
+          title={t.quitLesson}
           className="no-drag flex h-8 w-8 items-center justify-center rounded-lg text-[18px] text-gray-500 hover:bg-ink-850 hover:text-white"
         >
           ✕
@@ -347,7 +360,7 @@ export default function LessonPlayer({
                 exit={{ opacity: 0 }}
                 className="no-drag text-[12px] font-extrabold uppercase tracking-wide text-glass-warm"
               >
-                🔥 {inRow} in a row
+                {t.inARow(inRow)}
               </motion.span>
             )}
           </AnimatePresence>
@@ -379,10 +392,10 @@ export default function LessonPlayer({
               ) : queue.length === 0 ? (
                 <div className="py-16 text-center">
                   <div className="text-[56px]">👌</div>
-                  <h1 className="mt-3 text-[24px] font-extrabold text-white">Nothing to practice</h1>
-                  <p className="mt-2 text-[15px] text-gray-400">No open mistakes in this walkthrough.</p>
+                  <h1 className="mt-3 text-[24px] font-extrabold text-white">{t.nothingToPractice}</h1>
+                  <p className="mt-2 text-[15px] text-gray-400">{t.noOpenMistakes}</p>
                   <div className="mt-6">
-                    <Btn onClick={onExit}>Back to the path</Btn>
+                    <Btn onClick={onExit}>{t.backToPath}</Btn>
                   </div>
                 </div>
               ) : (
@@ -397,7 +410,7 @@ export default function LessonPlayer({
                     >
                       {item!.retry && (
                         <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-glass-warm/10 px-3 py-1 text-[11.5px] font-bold uppercase tracking-wide text-glass-warm">
-                          ↺ Previous mistake
+                          {t.previousMistake}
                         </div>
                       )}
                       <ExerciseView
@@ -442,14 +455,12 @@ export default function LessonPlayer({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-[44px]">🥺</div>
-            <h2 className="mt-2 text-[20px] font-extrabold text-white">Wait, don't go!</h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-gray-400">
-              You'll lose your progress in this lesson if you quit now.
-            </p>
+            <h2 className="mt-2 text-[20px] font-extrabold text-white">{t.dontGo}</h2>
+            <p className="mt-2 text-[14px] leading-relaxed text-gray-400">{t.loseProgress}</p>
             <div className="mt-6 flex flex-col gap-3">
-              <Btn onClick={() => setQuitOpen(false)}>Keep learning</Btn>
+              <Btn onClick={() => setQuitOpen(false)}>{t.keepLearning}</Btn>
               <button onClick={onExit} className="no-drag py-1 text-[13px] font-bold uppercase tracking-wide text-glass-del hover:brightness-125">
-                End lesson
+                {t.endLesson}
               </button>
             </div>
           </motion.div>
@@ -476,6 +487,10 @@ function ExerciseView({
 }) {
   const props = { response, setResponse, locked, correct }
   switch (ex.kind) {
+    case 'idea':
+      return <IdeaCard ex={ex} />
+    case 'mini':
+      return <MiniCard ex={ex} />
     case 'learn':
       return <LearnCard ex={ex} />
     case 'learn-chunk':
@@ -520,7 +535,8 @@ function Footer({
   onNext: () => void
   onShowMe: () => void
 }) {
-  const teaching = ex.kind === 'learn' || ex.kind === 'learn-chunk'
+  const t = useStrings()
+  const teaching = isTeaching(ex)
   const tone = fb ? TONE[fb.tone] : null
 
   return (
@@ -544,7 +560,7 @@ function Footer({
               <div className={cn('text-[20px] font-extrabold', tone.text)}>{fb.title}</div>
               {fb.answer && (
                 <div className="mt-1 text-[14.5px] leading-relaxed text-gray-100">
-                  <span className={cn('font-bold', tone.text)}>Correct answer: </span>
+                  <span className={cn('font-bold', tone.text)}>{t.correctAnswer}</span>
                   <span className="whitespace-pre-line">{fb.answer}</span>
                 </div>
               )}
@@ -556,12 +572,12 @@ function Footer({
               )}
               {fb.explanation && (
                 <p className="mt-1 text-[14px] leading-relaxed text-gray-300">
-                  {fb.score && <span className="font-bold text-gray-200">A strong answer: </span>}
+                  {fb.score && <span className="font-bold text-gray-200">{t.strongAnswer}</span>}
                   {fb.explanation}
                 </p>
               )}
               {fb.tone === 'wrong' && (
-                <p className="mt-1.5 text-[12px] text-ink-600">This one will come back before the lesson ends.</p>
+                <p className="mt-1.5 text-[12px] text-ink-600">{t.comesBackLater}</p>
               )}
             </div>
           </motion.div>
@@ -569,14 +585,12 @@ function Footer({
           <div className="flex-1">
             {!teaching && ex.kind !== 'match' && (
               <Btn tone="ghost" onClick={onShowMe} disabled={scoring}>
-                {ex.kind === 'explain' ? 'Skip' : "Can't tell"}
+                {ex.kind === 'explain' ? t.skip : t.cantTell}
               </Btn>
             )}
-            {ex.kind === 'match' && <span className="text-[13px] text-ink-600">Find every pair to continue.</span>}
+            {ex.kind === 'match' && <span className="text-[13px] text-ink-600">{t.findEveryPair}</span>}
             {retriesLeft > 0 && !teaching && ex.kind !== 'match' && (
-              <span className="ml-4 text-[12px] text-ink-600">
-                {retriesLeft} mistake{retriesLeft === 1 ? '' : 's'} to revisit
-              </span>
+              <span className="ml-4 text-[12px] text-ink-600">{t.mistakesToRevisit(retriesLeft)}</span>
             )}
           </div>
         )}
@@ -584,15 +598,15 @@ function Footer({
         <div className="flex-none">
           {fb && tone ? (
             <Btn tone={tone.btn} onClick={onNext} className="min-w-[150px]">
-              Continue
+              {t.continue}
             </Btn>
           ) : teaching ? (
             <Btn onClick={onNext} className="min-w-[150px]">
-              Continue
+              {t.continue}
             </Btn>
           ) : ex.kind === 'match' ? null : (
             <Btn tone="success" disabled={!ready} onClick={onCheck} className="min-w-[150px]">
-              {scoring ? 'Grading…' : 'Check'}
+              {scoring ? t.grading : t.check}
             </Btn>
           )}
         </div>
@@ -618,22 +632,23 @@ function Preparing({
   onRetry?: () => void
   onBack: () => void
 }) {
+  const t = useStrings()
   return (
     <div className="py-10">
       <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.12em] text-glass-accent2">
-        {index >= 0 ? `Lesson ${index + 1}` : 'Lesson'}
+        {index >= 0 ? t.lessonN(index + 1) : t.lesson}
       </div>
       <h1 className="text-[28px] font-extrabold leading-tight text-white">{title}</h1>
       {teaser && <p className="mt-2 text-[16px] text-gray-400">{teaser}</p>}
       <div className="mt-8">
         {error ? (
           <div className="rounded-2xl border border-glass-del/30 bg-glass-del/10 p-4">
-            <p className="text-[14px] font-bold text-glass-del">Couldn't build this lesson</p>
+            <p className="text-[14px] font-bold text-glass-del">{t.couldNotBuildLesson}</p>
             <p className="mt-1 line-clamp-3 text-[13px] text-gray-400">{error}</p>
             <div className="mt-4 flex gap-3">
-              {onRetry && <Btn onClick={onRetry}>Try again</Btn>}
+              {onRetry && <Btn onClick={onRetry}>{t.tryAgain}</Btn>}
               <Btn tone="ghost" onClick={onBack}>
-                Back
+                {t.back}
               </Btn>
             </div>
           </div>
@@ -641,7 +656,7 @@ function Preparing({
           <>
             <div className="mb-3 flex items-center gap-3 text-[15px] text-gray-300">
               <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-glass-accent2/30 border-t-glass-accent2" />
-              Reading the real code to build your lesson…
+              {t.buildingLesson}
             </div>
             {scope && <AgentStatus scope={scope} />}
           </>
@@ -669,15 +684,17 @@ function ResultsScreen({
   onContinue: () => void
   onHunt: (sectionId: string) => void
 }) {
+  const t = useStrings()
   const section = useStore((s) => (sectionId ? s.sections[sectionId] : undefined))
   const [bonus, setBonus] = useState(false)
-  const accLabel = results.accuracy >= 95 ? 'Amazing' : results.accuracy >= 80 ? 'Great' : results.accuracy >= 60 ? 'Good' : 'Accuracy'
+  const accLabel =
+    results.accuracy >= 95 ? t.accAmazing : results.accuracy >= 80 ? t.accGreat : results.accuracy >= 60 ? t.accGood : t.accuracy
   const huntable = (section?.reviewFindings?.length ?? 0) > 0
   const challenge = section?.codingChallenge
 
   const headline = useMemo(
-    () => (practice ? 'Practice complete!' : results.perfect ? 'Perfect lesson!' : 'Lesson complete!'),
-    [practice, results.perfect]
+    () => (practice ? t.practiceComplete : results.perfect ? t.perfectLesson : t.lessonComplete),
+    [practice, results.perfect, t]
   )
 
   return (
@@ -694,9 +711,9 @@ function ResultsScreen({
         <h1 className="mt-4 text-[32px] font-black text-glass-warm">{headline}</h1>
 
         <div className="mt-8 grid w-full grid-cols-3 gap-3">
-          <StatTile tone="warm" label="Total XP" value={`⚡ ${results.xp}`} delay={0.1} />
+          <StatTile tone="warm" label={t.totalXp} value={`⚡ ${results.xp}`} delay={0.1} />
           <StatTile tone="green" label={accLabel} value={`🎯 ${results.accuracy}%`} delay={0.2} />
-          <StatTile tone="blue" label={results.ms < 150_000 ? 'Speedy' : 'Time'} value={`⏱ ${fmtTime(results.ms)}`} delay={0.3} />
+          <StatTile tone="blue" label={results.ms < 150_000 ? t.speedy : t.time} value={`⏱ ${fmtTime(results.ms)}`} delay={0.3} />
         </div>
 
         <motion.div
@@ -705,26 +722,24 @@ function ResultsScreen({
           transition={{ delay: 0.45 }}
           className="mt-6 space-y-2 text-[15px] text-gray-300"
         >
-          <p>
-            +<span className="font-bold text-glass-warm">{results.coins}</span> 🪙 coins
-          </p>
+          <p className="font-bold text-glass-warm">{t.coinsEarned(results.coins)}</p>
           {results.extended && (
             <p className="text-[17px] font-extrabold text-glass-warm">
-              🔥 {results.streak} day streak{results.streak > 1 ? '!' : ' started!'}
+              {results.streak > 1 ? t.streakDays(results.streak) : t.streakStarted(results.streak)}
             </p>
           )}
-          {results.goalReached && <p className="font-bold text-glass-accent2">⚡ Daily goal reached</p>}
+          {results.goalReached && <p className="font-bold text-glass-accent2">{t.dailyGoalReached}</p>}
         </motion.div>
 
         <div className="mt-8 w-full">
           <Btn onClick={onContinue} className="w-full">
-            Continue
+            {t.continue}
           </Btn>
         </div>
 
         {(challenge || huntable) && (
           <div className="mt-8 w-full border-t border-ink-800 pt-6 text-left">
-            <div className="mb-3 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-600">Keep going</div>
+            <div className="mb-3 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-600">{t.keepGoing}</div>
             <div className="grid gap-2">
               {challenge && (
                 <button
@@ -733,7 +748,7 @@ function ResultsScreen({
                 >
                   <span className="text-[22px]">⚒️</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[14.5px] font-bold text-white">Bonus: write the code</span>
+                    <span className="block text-[14.5px] font-bold text-white">{t.bonusWriteCode}</span>
                     <span className="block truncate text-[12.5px] text-gray-400">{challenge.title}</span>
                   </span>
                   <span className="text-ink-600">{bonus ? '▾' : '▸'}</span>
@@ -751,10 +766,8 @@ function ResultsScreen({
                 >
                   <span className="text-[22px]">🐛</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[14.5px] font-bold text-white">Review it: hunt the bugs</span>
-                    <span className="block text-[12.5px] text-gray-400">
-                      {section!.reviewFindings.length} issue{section!.reviewFindings.length === 1 ? '' : 's'} a reviewer would flag
-                    </span>
+                    <span className="block text-[14.5px] font-bold text-white">{t.huntTheBugs}</span>
+                    <span className="block text-[12.5px] text-gray-400">{t.issuesToFlag(section!.reviewFindings.length)}</span>
                   </span>
                   <span className="text-ink-600">▸</span>
                 </button>

@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { useGame, DAILY_GOAL_XP } from '../game/store'
 import { cn } from '../lib/files'
 import { WARMUP_ID, buildWarmupLesson, doneKey, outstandingMistakes, perfectKey, practiceCount } from '../lib/lessons'
+import { useStrings, type Strings } from '../lib/i18n'
 import AgentStatus from './AgentStatus'
 import OverviewCard from './OverviewCard'
 import type { LessonRef } from './lesson/LessonPlayer'
@@ -48,6 +49,7 @@ export default function LearnPath({
   onMap: () => void
   onFlow: () => void
 }) {
+  const t = useStrings()
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
   const diff = useStore((s) => s.diff)
@@ -60,13 +62,13 @@ export default function LearnPath({
   const [bigPicture, setBigPicture] = useState(false)
   const topicMode = diff?.mode === 'topic'
 
-  const hasWarmup = useMemo(() => !!overview && buildWarmupLesson(overview, diff).length > 0, [overview, diff])
+  const hasWarmup = useMemo(() => !!overview && buildWarmupLesson(overview, diff, t).length > 0, [overview, diff, t])
 
   const nodes = useMemo<PathNode[]>(() => {
     if (!overview) return []
     const out: PathNode[] = []
     if (hasWarmup)
-      out.push({ id: WARMUP_ID, kind: 'warmup', title: 'Warm-up', sub: 'Guess the shape before you read', status: 'locked' })
+      out.push({ id: WARMUP_ID, kind: 'warmup', title: t.warmupNode, sub: t.warmupNodeSub, status: 'locked' })
     overview.sections.forEach((plan, index) =>
       out.push({ id: plan.id, kind: 'section', title: plan.title, sub: plan.teaser, plan, index, status: 'locked' })
     )
@@ -83,12 +85,12 @@ export default function LearnPath({
     out.push({
       id: 'finale',
       kind: 'finale',
-      title: topicMode ? 'Journey complete' : 'Your verdict',
-      sub: topicMode ? 'You answered your question' : 'Approve or request changes — earned, not clicked',
+      title: topicMode ? t.finaleTopic : t.finaleVerdict,
+      sub: topicMode ? t.finaleTopicSub : t.finaleVerdictSub,
       status: current ? 'locked' : 'current'
     })
     return out
-  }, [overview, rewarded, hasWarmup, topicMode])
+  }, [overview, rewarded, hasWarmup, topicMode, t])
 
   const lessons = nodes.filter((n) => n.kind !== 'finale')
   const doneCount = lessons.filter((n) => n.status === 'done').length
@@ -130,18 +132,16 @@ export default function LearnPath({
         <div className="w-full max-w-md">
           {ov?.error ? (
             <div className="rounded-2xl border border-glass-del/30 bg-glass-del/10 p-4">
-              <p className="text-[14px] font-bold text-glass-del">Couldn't build the walkthrough</p>
+              <p className="text-[14px] font-bold text-glass-del">{t.couldNotBuild}</p>
               <p className="mt-1 line-clamp-3 text-[12.5px] text-gray-400">{ov.error}</p>
               <div className="mt-4">
-                <Btn onClick={() => void ensureOverview()}>Try again</Btn>
+                <Btn onClick={() => void ensureOverview()}>{t.tryAgain}</Btn>
               </div>
             </div>
           ) : (
             <>
-              <h2 className="mb-1 text-[22px] font-extrabold text-white">Building your course…</h2>
-              <p className="mb-5 text-[14px] text-gray-400">
-                The agent is reading the whole change to plan your lessons.
-              </p>
+              <h2 className="mb-1 text-[22px] font-extrabold text-white">{t.buildingCourse}</h2>
+              <p className="mb-5 text-[14px] text-gray-400">{t.buildingCourseSub}</p>
               <AgentStatus scope="overview" />
             </>
           )}
@@ -167,16 +167,18 @@ export default function LearnPath({
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <div className="text-[12px] font-extrabold uppercase tracking-[0.14em] opacity-70">
-                  {topicMode ? '🧭 Your question' : `${diff?.base} → ${diff?.feature}`}
+                  {topicMode ? t.yourQuestion : `${diff?.base} → ${diff?.feature}`}
                 </div>
                 <h1 className="mt-1 text-[22px] font-black leading-tight">{overview.title}</h1>
-                <p className="mt-1.5 text-[14px] font-medium leading-snug opacity-80">{overview.whatGist}</p>
+                <p className="mt-1.5 text-[14px] font-medium leading-snug opacity-80">
+                  {overview.primer?.idea?.trim() || overview.whatGist}
+                </p>
               </div>
               <button
                 onClick={() => setBigPicture(true)}
                 className="no-drag flex-none rounded-xl border-2 border-ink-950/20 bg-white/15 px-3 py-2 text-[12px] font-extrabold uppercase tracking-wide hover:bg-white/25"
               >
-                📖 Big picture
+                {t.bigPictureBtn}
               </button>
             </div>
           </div>
@@ -212,7 +214,7 @@ export default function LearnPath({
                         {n.kind === 'section' ? `${(n.index ?? 0) + 1}. ${n.title}` : n.title}
                       </div>
                       <div className="truncate text-[12px] text-ink-600">
-                        {l?.busy ? 'preparing…' : l?.error ? '⚠ needs a retry' : n.sub}
+                        {l?.busy ? t.preparing : l?.error ? t.needsRetry : n.sub}
                       </div>
                     </div>
 
@@ -226,6 +228,7 @@ export default function LearnPath({
                           failed={!!l?.error && !l.busy}
                           lessonsLeft={lessons.length - doneCount}
                           topicMode={topicMode}
+                          t={t}
                           onStart={() => start(n)}
                         />
                       )}
@@ -262,7 +265,7 @@ export default function LearnPath({
             <OverviewCard />
             <div className="flex justify-end p-4">
               <Btn tone="ghost" onClick={() => setBigPicture(false)}>
-                Close
+                {t.close}
               </Btn>
             </div>
           </motion.div>
@@ -279,6 +282,7 @@ const NODE_TONE: Record<NodeStatus, string> = {
 }
 
 function NodeButton({ node, busy, onClick }: { node: PathNode; busy: boolean; onClick: () => void }) {
+  const t = useStrings()
   const icon =
     node.status === 'locked'
       ? node.kind === 'finale'
@@ -307,7 +311,7 @@ function NodeButton({ node, busy, onClick }: { node: PathNode; busy: boolean; on
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 1.4, repeat: Infinity }}
           >
-            {node.kind === 'finale' ? 'Claim' : 'Start'}
+            {node.kind === 'finale' ? t.claimBtn : t.startBtn}
           </motion.div>
         </>
       )}
@@ -336,6 +340,7 @@ function NodeCard({
   failed,
   lessonsLeft,
   topicMode,
+  t,
   onStart
 }: {
   node: PathNode
@@ -345,18 +350,19 @@ function NodeCard({
   failed: boolean
   lessonsLeft: number
   topicMode: boolean
+  t: Strings
   onStart: () => void
 }) {
   const locked = node.status === 'locked'
   const finale = node.kind === 'finale'
   const meta =
     node.kind === 'warmup'
-      ? 'A few guesses, then the big picture'
+      ? t.warmupNodeMeta
       : node.kind === 'section'
         ? [
-            files ? `${files} file${files === 1 ? '' : 's'}` : '',
-            blocks ? `${blocks} code block${blocks === 1 ? '' : 's'}` : '',
-            preparing ? 'preparing…' : failed ? 'failed to prepare — start to retry' : ''
+            files ? t.filesCount(files) : '',
+            blocks ? t.blocksCount(blocks) : '',
+            preparing ? t.preparing : failed ? t.failedToPrepare : ''
           ]
             .filter(Boolean)
             .join(' · ')
@@ -379,24 +385,22 @@ function NodeCard({
       <div className="mt-4">
         {finale ? (
           locked ? (
-            <p className="text-[13px] text-gray-400">
-              Finish {lessonsLeft} more lesson{lessonsLeft === 1 ? '' : 's'} to {topicMode ? 'complete the journey' : 'unlock your verdict'}.
-            </p>
+            <p className="text-[13px] text-gray-400">{t.finishToUnlock(lessonsLeft, topicMode)}</p>
           ) : (
             <Btn tone="warm" onClick={onStart} className="w-full">
-              {topicMode ? 'See the big picture' : 'Mint your verdict'}
+              {topicMode ? t.seeBigPicture : t.mintVerdict}
             </Btn>
           )
         ) : locked ? (
           <>
-            <p className="mb-3 text-[12.5px] text-gray-400">Finish the lessons before this one to unlock it — or jump ahead.</p>
+            <p className="mb-3 text-[12.5px] text-gray-400">{t.lockedHint}</p>
             <Btn tone="ghost" onClick={onStart} className="w-full">
-              Jump ahead
+              {t.jumpAhead}
             </Btn>
           </>
         ) : (
           <Btn tone={node.status === 'done' ? 'warm' : 'primary'} onClick={onStart} className="w-full">
-            {node.status === 'done' ? 'Practice again' : 'Start'}
+            {node.status === 'done' ? t.practiceAgain : t.startBtn}
           </Btn>
         )}
       </div>
@@ -427,6 +431,7 @@ function Rail({
   onMap: () => void
   onFlow: () => void
 }) {
+  const t = useStrings()
   const overview = useStore((s) => s.overview)
   const sections = useStore((s) => s.sections)
   const diff = useStore((s) => s.diff)
@@ -436,8 +441,8 @@ function Rail({
   const xpToday = useGame((s) => s.xpToday())
 
   const mistakes = useMemo(
-    () => (overview ? practiceCount(outstandingMistakes(rewarded), overview, sections, diff) : 0),
-    [rewarded, overview, sections, diff]
+    () => (overview ? practiceCount(outstandingMistakes(rewarded), overview, sections, diff, t) : 0),
+    [rewarded, overview, sections, diff, t]
   )
   const goalPct = Math.min(100, Math.round((xpToday / DAILY_GOAL_XP) * 100))
   const allDone = total > 0 && doneCount === total
@@ -449,19 +454,17 @@ function Rail({
           <span className={cn('text-[34px] leading-none', !safe && 'grayscale')}>🔥</span>
           <div>
             <div className={cn('text-[22px] font-black leading-none', safe ? 'text-glass-warm' : 'text-gray-300')}>
-              {streak} day{streak === 1 ? '' : 's'}
+              {t.streakUnit(streak)}
             </div>
             <div className="mt-1 text-[12px] text-gray-400">
-              {safe ? 'Streak safe today' : streak > 0 ? 'Finish a lesson to keep it' : 'Finish a lesson to start a streak'}
+              {safe ? t.streakSafe : streak > 0 ? t.streakKeep : t.streakStart}
             </div>
           </div>
         </div>
         <div className="mt-4">
           <div className="flex items-center justify-between text-[12px] font-bold">
-            <span className="text-gray-300">⚡ Daily goal</span>
-            <span className="text-ink-600">
-              {xpToday}/{DAILY_GOAL_XP} XP
-            </span>
+            <span className="text-gray-300">{t.dailyGoal}</span>
+            <span className="text-ink-600">{t.xpOf(xpToday, DAILY_GOAL_XP)}</span>
           </div>
           <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-ink-800">
             <div className="h-full rounded-full bg-glass-warm transition-all" style={{ width: `${goalPct}%` }} />
@@ -470,24 +473,20 @@ function Rail({
       </Card>
 
       <Card>
-        <div className="text-[15px] font-extrabold text-white">🎯 Practice</div>
+        <div className="text-[15px] font-extrabold text-white">{t.practiceTitle}</div>
         <p className="mt-1 text-[12.5px] leading-relaxed text-gray-400">
-          {mistakes > 0
-            ? `${mistakes} question${mistakes === 1 ? '' : 's'} you missed. Get them right to make them stick.`
-            : 'Questions you miss land here for a second try.'}
+          {mistakes > 0 ? t.practiceOpen(mistakes) : t.practiceNone}
         </p>
         <Btn tone="ghost" disabled={mistakes === 0} onClick={onPractice} className="mt-3 w-full">
-          Practice mistakes
+          {t.practiceBtn}
         </Btn>
       </Card>
 
       {!topicMode && (
         <Card>
-          <div className="text-[15px] font-extrabold text-white">🏁 Your verdict</div>
+          <div className="text-[15px] font-extrabold text-white">{t.verdictTitle}</div>
           <p className="mt-1 text-[12.5px] leading-relaxed text-gray-400">
-            {allDone
-              ? 'You understand the change. Spend your coins to mint an Approve / Request-changes review.'
-              : `Finish every lesson to unlock it — ${doneCount}/${total} done.`}
+            {allDone ? t.verdictReady : t.verdictProgress(doneCount, total)}
           </p>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800">
             <div
@@ -496,19 +495,19 @@ function Rail({
             />
           </div>
           <Btn tone="warm" disabled={!allDone} onClick={onCashout} className="mt-3 w-full">
-            Mint verdict
+            {t.mintVerdict}
           </Btn>
         </Card>
       )}
 
       <Card>
-        <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-600">More ways to learn</div>
+        <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-600">{t.moreWays}</div>
         <div className="-mx-2">
-          <RailLink icon="🐛" label="Bug Hunt" sub="Spot what a reviewer would flag" onClick={onHunt} />
-          <RailLink icon="⚔️" label="Boss Fight" sub="Rapid recall across every lesson" onClick={onBoss} />
-          {!topicMode && <RailLink icon="🗺️" label="Blast radius" sub="Map of everything that changed" onClick={onMap} />}
-          <RailLink icon="🌊" label="Data flow" sub="Watch values move through it" onClick={onFlow} />
-          <RailLink icon="🕹️" label="Arcade" sub="Mini-games, shop and quests" onClick={onArcade} />
+          <RailLink icon="🐛" label={t.railBugHunt} sub={t.railBugHuntSub} onClick={onHunt} />
+          <RailLink icon="⚔️" label={t.railBoss} sub={t.railBossSub} onClick={onBoss} />
+          {!topicMode && <RailLink icon="🗺️" label={t.railBlast} sub={t.railBlastSub} onClick={onMap} />}
+          <RailLink icon="🌊" label={t.railFlow} sub={t.railFlowSub} onClick={onFlow} />
+          <RailLink icon="🕹️" label={t.railArcade} sub={t.railArcadeSub} onClick={onArcade} />
         </div>
       </Card>
     </aside>

@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { InlineExplanation, WalkChunk } from '@shared/types'
 import type { CodeWindow, Exercise, Response } from '../../lib/lessons'
 import { useGame } from '../../game/store'
 import { play } from '../../game/sfx'
 import { cn } from '../../lib/files'
-import PokeableCode from '../PokeableCode'
+import { tokenize, type Line } from '../../lib/highlight'
+import { useStrings } from '../../lib/i18n'
+import PokeableCode, { langOf } from '../PokeableCode'
 import WhyThis from '../WhyThis'
 import { Eyebrow, KeyBadge, tileClass, type TileState } from './ui'
 
@@ -78,6 +80,128 @@ export function CodeCard({
 // Teaching screens
 // ---------------------------------------------------------------------------
 
+/**
+ * The first screen of every lesson: the idea in everyday words, an optional
+ * comparison, and the handful of words the lesson is about to lean on. Nothing
+ * here is code — that is the point. A reader who has never seen this repo gets
+ * a mental model to hang the code on.
+ */
+export function IdeaCard({ ex }: { ex: Of<'idea'> }) {
+  const t = useStrings()
+  return (
+    <div>
+      <Eyebrow>{ex.eyebrow}</Eyebrow>
+      <h1 className="text-[30px] font-extrabold leading-tight text-white">{ex.title}</h1>
+      <p className="mt-4 text-[18px] leading-relaxed text-gray-100">{ex.idea}</p>
+
+      {ex.analogy && (
+        <div className="mt-5 flex gap-3 rounded-2xl border border-glass-accent2/25 bg-glass-accent2/5 p-4">
+          <span className="text-[20px] leading-none">💡</span>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-glass-accent2">{t.analogyLabel}</div>
+            <p className="mt-1 text-[15.5px] leading-relaxed text-gray-200">{ex.analogy}</p>
+          </div>
+        </div>
+      )}
+
+      {ex.terms.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-600">{t.termsHeading}</div>
+          <div className="space-y-2">
+            {ex.terms.map((term) => (
+              <div key={term.term} className="rounded-xl border border-ink-700 bg-ink-900 p-3.5">
+                <div className="font-mono text-[14px] font-bold text-glass-warm">{term.term}</div>
+                <p className="mt-1 text-[14.5px] leading-relaxed text-gray-300">{term.plain}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ex.aside && (
+        <div className="mt-5 rounded-2xl border border-glass-accent/25 bg-glass-accent/5 p-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-glass-accent">{ex.aside.label}</div>
+          <p className="mt-1 text-[15px] leading-relaxed text-gray-200">{ex.aside.text}</p>
+        </div>
+      )}
+
+      {ex.bullets && ex.bullets.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-ink-600">{t.afterThisLesson}</div>
+          <ul className="space-y-2">
+            {ex.bullets.map((b, i) => (
+              <li key={i} className="flex gap-3 text-[14.5px] leading-relaxed text-gray-300">
+                <span className="mt-[3px] flex h-5 w-5 flex-none items-center justify-center rounded-full bg-glass-accent2/15 text-[11px] text-glass-accent2">
+                  ›
+                </span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Syntax-highlighted code that isn't a file — the simplified snippet. */
+function Snippet({ code, lang }: { code: string; lang: string }) {
+  const theme = useGame((s) => s.equipped.theme)
+  const [lines, setLines] = useState<Line[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    tokenize(code, lang, theme)
+      .then((toks) => alive && setLines(toks))
+      .catch(() => alive && setLines(null))
+    return () => {
+      alive = false
+    }
+  }, [code, lang, theme])
+
+  return (
+    <pre className="overflow-x-auto px-4 py-3 font-mono text-[13.5px] leading-[1.7]">
+      {lines
+        ? lines.map((line, i) => (
+            <div key={i}>
+              {line.length === 0 ? (
+                <span>{'\u00a0'}</span>
+              ) : (
+                line.map((tok, j) => (
+                  <span key={j} style={{ color: tok.color }}>
+                    {tok.content}
+                  </span>
+                ))
+              )}
+            </div>
+          ))
+        : code.split('\n').map((line, i) => <div key={i}>{line || '\u00a0'}</div>)}
+    </pre>
+  )
+}
+
+/**
+ * The idea with the noise removed: a few invented lines that show the shape of
+ * what the next screen's real block does. Labelled as simplified, loudly, so
+ * nobody goes looking for these lines in the repo.
+ */
+export function MiniCard({ ex }: { ex: Of<'mini'> }) {
+  const t = useStrings()
+  return (
+    <div>
+      <Eyebrow>{ex.eyebrow}</Eyebrow>
+      <h1 className="text-[25px] font-extrabold leading-tight text-white">{ex.title}</h1>
+      <p className="mt-2 text-[16.5px] leading-relaxed text-gray-100">{ex.caption}</p>
+      <div className="mt-4 overflow-hidden rounded-xl border-2 border-dashed border-glass-accent2/40 bg-ink-900">
+        <div className="border-b border-ink-800 bg-glass-accent2/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-glass-accent2">
+          {t.simplifiedNote}
+        </div>
+        <Snippet code={ex.code} lang={langOf(ex.file)} />
+      </div>
+      <p className="mt-3 text-[13px] text-ink-600">{ex.next}</p>
+    </div>
+  )
+}
+
 export function LearnCard({ ex }: { ex: Of<'learn'> }) {
   return (
     <div>
@@ -106,21 +230,32 @@ export function LearnCard({ ex }: { ex: Of<'learn'> }) {
   )
 }
 
-const CHANGE_META: Record<string, { label: string; cls: string }> = {
-  added: { label: 'Added', cls: 'bg-glass-add/15 text-glass-add' },
-  modified: { label: 'Changed', cls: 'bg-glass-accent/15 text-glass-accent' },
-  removed: { label: 'Removed', cls: 'bg-glass-del/15 text-glass-del' },
-  context: { label: 'Explore', cls: 'bg-glass-accent2/15 text-glass-accent2' }
+const CHANGE_CLS: Record<string, string> = {
+  added: 'bg-glass-add/15 text-glass-add',
+  modified: 'bg-glass-accent/15 text-glass-accent',
+  removed: 'bg-glass-del/15 text-glass-del',
+  context: 'bg-glass-accent2/15 text-glass-accent2'
 }
 
 /** The explanation that follows a prediction: the same code, now with its story. */
 export function LearnChunkCard({ chunk, explanations }: { chunk: WalkChunk; explanations: InlineExplanation[] }) {
-  const meta = CHANGE_META[chunk.changeKind] ?? CHANGE_META.modified
+  const t = useStrings()
+  const [more, setMore] = useState(false)
+  const cls = CHANGE_CLS[chunk.changeKind] ?? CHANGE_CLS.modified
+  const label =
+    chunk.changeKind === 'added'
+      ? t.changeAdded
+      : chunk.changeKind === 'removed'
+        ? t.changeRemoved
+        : chunk.changeKind === 'context'
+          ? t.changeContext
+          : t.changeModified
   const calledBy = chunk.story.calledBy?.trim()
+  const hasMore = !!chunk.story.fits?.trim() || !!(calledBy && calledBy.toLowerCase() !== 'n/a') || !!chunk.story.gotcha
   return (
     <div>
       <Eyebrow>
-        <span className={cn('mr-2 rounded px-1.5 py-0.5 text-[10px] tracking-wider', meta.cls)}>{meta.label}</span>
+        <span className={cn('mr-2 rounded px-1.5 py-0.5 text-[10px] tracking-wider', cls)}>{label}</span>
         <span className="font-mono normal-case tracking-normal text-ink-600">
           {base(chunk.file)}:{chunk.startLine}
         </span>
@@ -133,16 +268,38 @@ export function LearnChunkCard({ chunk, explanations }: { chunk: WalkChunk; expl
           explanations={explanations}
         />
       </div>
-      <p className="mt-1.5 text-[11.5px] text-ink-600">Hover an underlined name to see what it is.</p>
+      <p className="mt-1.5 text-[11.5px] text-ink-600">{t.hoverHint}</p>
+      {/* One story row up front; the rest is a click away, so the screen stays
+          readable instead of becoming four paragraphs of prose. */}
       <div className="mt-4 space-y-3">
-        <StoryRow icon="⚙️" label="What it does" text={chunk.story.what} />
-        <StoryRow icon="🧩" label="How it fits" text={chunk.story.fits} />
-        {calledBy && calledBy.toLowerCase() !== 'n/a' && <StoryRow icon="📞" label="Who calls it" text={calledBy} />}
-        {chunk.story.gotcha && (
-          <div className="rounded-xl border border-glass-warm/30 bg-glass-warm/5 p-3.5">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-glass-warm">⚠ Watch out</div>
-            <p className="mt-1 text-[14.5px] leading-relaxed text-gray-200">{chunk.story.gotcha}</p>
-          </div>
+        <StoryRow icon="⚙️" label={t.storyWhat} text={chunk.story.what} />
+        <AnimatePresence initial={false}>
+          {more && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-3 overflow-hidden"
+            >
+              <StoryRow icon="🧩" label={t.storyFits} text={chunk.story.fits} />
+              {calledBy && calledBy.toLowerCase() !== 'n/a' && <StoryRow icon="📞" label={t.storyCalledBy} text={calledBy} />}
+              {chunk.story.gotcha && (
+                <div className="rounded-xl border border-glass-warm/30 bg-glass-warm/5 p-3.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-glass-warm">{t.storyGotcha}</div>
+                  <p className="mt-1 text-[14.5px] leading-relaxed text-gray-200">{chunk.story.gotcha}</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setMore((m) => !m)}
+            className="no-drag text-[13px] font-bold text-glass-accent2 hover:brightness-125"
+          >
+            {more ? t.showLess : `${t.showMore} ›`}
+          </button>
         )}
       </div>
       <div className="mt-4">
@@ -213,6 +370,7 @@ export function ChoiceEx({ ex, response, setResponse, locked }: ExProps<Of<'choi
 }
 
 export function TapLineEx({ ex, response, setResponse, locked, correct }: ExProps<Of<'tapline'>>) {
+  const t = useStrings()
   const picked = typeof response === 'number' ? response : null
   const lineClass = (ln: number) => {
     if (locked) {
@@ -237,14 +395,13 @@ export function TapLineEx({ ex, response, setResponse, locked, correct }: ExProp
           lineClass={lineClass}
         />
       </div>
-      <p className="mt-2 text-[12px] text-ink-600">
-        {picked === null ? 'Tap a line in the code.' : `Line ${picked} selected — tap another to change it.`}
-      </p>
+      <p className="mt-2 text-[12px] text-ink-600">{picked === null ? t.tapLineHint : t.tapLinePicked(picked)}</p>
     </div>
   )
 }
 
 export function OrderEx({ ex, response, setResponse, locked }: ExProps<Of<'order'>>) {
+  const t = useStrings()
   // Shuffle the bank once per attempt, and never into the answer itself.
   const bank = useMemo(() => {
     if (ex.items.length < 2) return ex.items
@@ -262,7 +419,7 @@ export function OrderEx({ ex, response, setResponse, locked }: ExProps<Of<'order
     <div>
       <Eyebrow>{ex.eyebrow}</Eyebrow>
       <Prompt>{ex.prompt}</Prompt>
-      <p className="mt-1.5 text-[13px] text-ink-600">Tap the cards in order. Tap a placed card to send it back.</p>
+      <p className="mt-1.5 text-[13px] text-ink-600">{t.orderHint}</p>
 
       <ol className="mt-5 space-y-2">
         {ex.items.map((_, i) => {
@@ -320,6 +477,7 @@ export function MatchEx({
   locked: boolean
   onDone: (mistakes: number) => void
 }) {
+  const t = useStrings()
   const sfxOn = useGame((s) => s.sfxOn)
   const left = useMemo(() => shuffle(ex.pairs.map((p, i) => ({ i, text: p.left }))), [ex])
   const right = useMemo(() => shuffle(ex.pairs.map((p, i) => ({ i, text: p.right }))), [ex])
@@ -403,7 +561,8 @@ export function MatchEx({
       </div>
       {!locked && (
         <p className="mt-3 text-[12px] text-ink-600">
-          {matched.length}/{ex.pairs.length} matched{mistakes > 0 ? ` · ${mistakes} miss${mistakes === 1 ? '' : 'es'}` : ''}
+          {t.matchedCount(matched.length, ex.pairs.length)}
+          {mistakes > 0 ? ` · ${mistakes}✗` : ''}
         </p>
       )}
     </div>
@@ -462,6 +621,7 @@ export function BlankEx({ ex, response, setResponse, locked, correct }: ExProps<
 }
 
 export function ExplainEx({ ex, response, setResponse, locked }: ExProps<Of<'explain'>>) {
+  const t = useStrings()
   return (
     <div>
       <Eyebrow>{ex.eyebrow}</Eyebrow>
@@ -471,11 +631,11 @@ export function ExplainEx({ ex, response, setResponse, locked }: ExProps<Of<'exp
         value={typeof response === 'string' ? response : ''}
         onChange={(e) => setResponse(e.target.value)}
         disabled={locked}
-        placeholder="Explain it the way you'd tell a teammate…"
+        placeholder={t.explainPlaceholder}
         className="no-drag mt-5 h-40 w-full resize-none rounded-2xl border-2 border-ink-700 bg-ink-900 p-4 text-[15px] leading-relaxed text-gray-100 outline-none transition-colors focus:border-glass-accent/60 disabled:opacity-70"
       />
       <p className="mt-2 text-[12px] text-ink-600">
-        Graded on understanding, not wording. {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to check.
+        {t.explainHint(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl')}
       </p>
     </div>
   )

@@ -18,7 +18,9 @@ import {
 import { diffToText, fileDiffText } from '../git/diff.js'
 import { ensureWorktree } from '../git/worktree.js'
 import { getSettings } from '../store/settings.js'
+import { LANGUAGE_NAME, resolveLanguage } from '@shared/types'
 import type {
+  Settings,
   AgentEvent,
   CodeAnchor,
   ChatMessage,
@@ -35,13 +37,37 @@ import type {
 
 const RECURSION_LIMIT = 80
 
+/**
+ * Who every explanation is written for. The reader is learning this codebase,
+ * not reviewing it with us — so the agent has to teach the idea before the
+ * code and may not lean on vocabulary the reader hasn't met yet.
+ */
+const AUDIENCE = `WHO YOU ARE WRITING FOR
+Someone who can program, but has never seen this codebase and may not know this stack's vocabulary. Teach them; don't brief a colleague who already knows the system.
+- Idea first, code second. Say what a thing is FOR in everyday words, then show the code that does it.
+- Never use a word you haven't explained: abbreviations (IPC, ORM, JWT, AST), framework and library names, patterns (reducer, middleware, worktree), internal names. Explain it in half a sentence the first time it appears.
+- Short sentences, one idea each. Concrete beats abstract: name what actually happens to what.
+- Banned words: "simply", "just", "obviously", "of course", "trivially". If it were obvious the reader wouldn't be here.
+- Say why a pattern is there, not only that it is standard practice.
+- No marketing, no praise for the code, no filler.`
+
+/** What language every submitted string is written in. */
+function languageBrief(settings: Settings): string {
+  const lang = resolveLanguage(settings.language, 'en')
+  if (lang === 'en') return ''
+  return `\n\nLANGUAGE
+Write EVERY string you submit in ${LANGUAGE_NAME[lang]} — titles, summaries, stories, questions, options, explanations, hints, captions, all of it. Keep code, identifiers, file paths and the terms themselves in their original form, and explain them in ${LANGUAGE_NAME[lang]}. Never mix the two languages inside one sentence beyond an identifier.`
+}
+
 const MISSION = `You are Glassbox — a patient tour guide who helps a human *understand* a code change with as little effort as possible.
 
 Your default mode is explaining, not nitpicking: lead with what the code does and why. Some tasks additionally ask you to surface potential issues (to train the reader's review skills) or to draft a PR review — when a task explicitly asks for that, do it, but flag only GENUINE problems grounded in the real code; never invent issues to fill a list.
 
 You have already been given the diff. Genuinely INVESTIGATE the real repository using the repo_* tools — follow imports, read type definitions, open tests, find call sites — so your explanations are real, not guessed. Prefer reading the actual code over speculating. Stay within your file budget; investigate what matters most first.
 
-Write in plain, warm language a busy developer can absorb fast. Be concrete and specific to THIS code. Avoid restating the diff line-by-line — explain what it means and why.`
+Write in plain, warm language. Be concrete and specific to THIS code. Avoid restating the diff line-by-line — explain what it means and why.
+
+${AUDIENCE}`
 
 const TOPIC_MISSION = `You are Glassbox — a patient tour guide who helps a human *understand a codebase* with as little effort as possible.
 
@@ -49,10 +75,12 @@ The reader has asked a question (or named a topic) about this repository. There 
 
 Genuinely INVESTIGATE the real repository using the repo_* tools — list directories, grep for the relevant concepts, follow imports, read type definitions, open tests, find call sites — so your explanations are real, not guessed. Prefer reading the actual code over speculating. Stay within your file budget; investigate what matters most first.
 
-Write in plain, warm language a busy developer can absorb fast. Be concrete and specific to THIS code. Anchor every explanation to real files and line numbers so the reader can see the code you are describing.`
+Write in plain, warm language. Be concrete and specific to THIS code. Anchor every explanation to real files and line numbers so the reader can see the code you are describing.
 
-function missionFor(diff: DiffSummary): string {
-  return diff.mode === 'topic' ? TOPIC_MISSION : MISSION
+${AUDIENCE}`
+
+function missionFor(diff: DiffSummary, settings: Settings): string {
+  return (diff.mode === 'topic' ? TOPIC_MISSION : MISSION) + languageBrief(settings)
 }
 
 function extractText(messages: BaseMessage[]): string {
@@ -175,6 +203,11 @@ async function invokeUntilSubmitted(
  * Appended to both overview prompts. The recon is played before any section, so
  * it has to be answerable from the big picture alone — no line-level trivia.
  */
+const PRIMER_BRIEF = `Before the questions, fill in primer — the first thing the reader ever sees, written for someone who has not read a line of this code:
+- idea: 1-2 sentences on what this is about, in everyday words. No file names, no identifiers, no abbreviations.
+- analogy: one everyday comparison that makes the idea click (omit it rather than force one).
+- terms: the 2-4 words the reader needs before they can follow you — abbreviations, framework names, patterns, domain words — each explained in one jargon-free sentence.`
+
 const ARCH_BRIEF = `Finally, fill in archChallenge — a "guess first" warm-up the reader plays BEFORE reading any section, to commit to a mental model of the system at 10,000 feet and find out where it's wrong:
 - stages: 3-6 steps of the main flow in the REAL order (the reader sorts them shuffled). Use concrete stages from this codebase, e.g. "the renderer asks the main process for a diff over IPC" — never generic filler like "input"/"process"/"output". Leave empty if nothing here is a sequence.
 - flowLabel: one short phrase naming that sequence.
@@ -204,7 +237,7 @@ export async function generateOverview(
     }
   )
 
-  const agent = await makeAgent(model, [...tools, submit], missionFor(diff))
+  const agent = await makeAgent(model, [...tools, submit], missionFor(diff, settings))
   const prompt = topicMode
     ? `The reader wants a guided journey through this repository, driven by their question/topic:
 
@@ -217,8 +250,10 @@ Explore the repository with the repo_* tools (start with repo_ls and repo_grep f
 - highlights: 3-6 bullet takeaways
 - sections: a logical top-down learning path through the relevant code (aim for 2-7 sections, each focused on one part of the answer — e.g. entry point, core logic, storage, edge cases). Each section needs an id, title, one-line teaser, and the repo-relative files it covers. Only include files that actually exist and matter to the question.
 
+${PRIMER_BRIEF}
+
 ${ARCH_BRIEF}`
-    : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.\n\n${ARCH_BRIEF}`
+    : `Here is the change under review:\n\n${diffToText(diff)}\n\nInvestigate as needed to understand the big picture (if a file's hunks were omitted above for size, read them with repo_diff), then call submit_overview. Break the change into a small number of logical, top-down sections (group related files; aim for 2-9 sections, and keep each section focused — ideally under ~15 files — so it can be investigated thoroughly). Each section needs an id, title, one-line teaser, and its files.\n\n${PRIMER_BRIEF}\n\n${ARCH_BRIEF}`
 
   emit({ kind: 'status', scope, message: topicMode ? 'Charting the journey…' : 'Forming the big picture…' })
   const res: any = await invokeUntilSubmitted(agent, prompt, () => captured !== null, 'submit_overview', RECURSION_LIMIT)
@@ -258,7 +293,7 @@ export async function generateSection(
     }
   )
 
-  const agent = await makeAgent(model, [...tools, submit], missionFor(diff))
+  const agent = await makeAgent(model, [...tools, submit], missionFor(diff, settings))
 
   const topicPrompt = `Build the walkthrough for ONE section of a topic journey through this repository.
 
@@ -271,7 +306,8 @@ Files: ${plan.files.join(', ')}
 
 There is no diff — this journey explores the EXISTING code. Investigate the real repository with the repo_* tools to ground every explanation (read the listed files in full, follow imports and types, find call sites, peek at tests). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary of what this section teaches about the topic
-- the notable code chunks (the blocks a reader must see to understand this part of the answer). For EACH chunk: set changeKind to "context", give a punchy one-line "gist" of what this block does, a story (what it does / how it fits into the answer / what calls it, plus an optional "gotcha"), and a "check" — see LESSON QUESTIONS below
+- primer: the plain-language groundwork shown BEFORE any code — the idea of this part in 1-2 everyday sentences (no identifiers, no file names), an optional everyday comparison, and the 2-4 terms the reader needs, each in one jargon-free sentence
+- the notable code chunks (the blocks a reader must see to understand this part of the answer). For EACH chunk: set changeKind to "context", give a punchy one-line "gist" of what this block does, a story (what it does / how it fits into the answer / what calls it, plus an optional "gotcha"), a "check" — see LESSON QUESTIONS below — and a "mini": see SIMPLIFIED FIRST below
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
 - zero or more traceable values showing how a value flows through this code: each step's "line" must be the exact line where that step happens, its "label" says what happens there in plain words (without quoting the code), and give concrete example values wherever you can
 - optionally, a gentle "guess what this does first?" self-check
@@ -280,7 +316,9 @@ There is no diff — this journey explores the EXISTING code. Investigate the re
 - codingChallenge: ONE small hands-on exercise built from this section's code — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that exercises the section's key idea, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns. Only flag real problems — if the code is clean, return an empty array.
 
-LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia.
+LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia. Keep the question and every option jargon-free and under ~12 words — a reader who met this code one screen ago has to be able to parse them.
+
+SIMPLIFIED FIRST — each block's "mini" is the idea with the noise removed: a caption in plain words plus 3-8 lines of simplified code with invented short names, no imports, no error handling, nothing repo-specific. The reader meets the mini, then the real block, so the real one reads as a variation of something they already understand. Write one for every block with real logic; omit it for trivial blocks (a renamed constant, a config value).
 
 Use the current line numbers of each file. Reuse the section id "${plan.id}".`
 
@@ -298,7 +336,8 @@ ${fileDiffs}
 
 Investigate the real repository with the repo_* tools to ground every explanation (read the changed files in full, follow imports and types, find call sites, peek at tests; if a diff above was truncated for size, call repo_diff for the full hunks). Then call submit_walkthrough_section with:
 - a one-sentence gist and a fuller plain-language summary
-- the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun), and a "check" — see LESSON QUESTIONS below
+- primer: the plain-language groundwork shown BEFORE any code — the idea of this part in 1-2 everyday sentences (no identifiers, no file names), an optional everyday comparison, and the 2-4 terms the reader needs, each in one jargon-free sentence
+- the notable code chunks. For EACH chunk include: its changeKind (added/modified/removed), a punchy one-line "gist" of what changed there (always shown, even in gist mode — make it concrete), a story (what it does / how it fits / what calls it, plus an optional "gotcha": a subtle point, edge case, or footgun), a "check" — see LESSON QUESTIONS below — and a "mini": see SIMPLIFIED FIRST below
 - inline hover explanations for the symbols a reader would poke at (use the EXACT identifier and its line)
 - zero or more traceable values showing how a value flows through the change: each step's "line" must be the exact line where that step happens, its "label" says what happens there in plain words (without quoting the code), and give concrete example values wherever you can
 - optionally, a gentle "guess what this does first?" self-check
@@ -307,7 +346,9 @@ Investigate the real repository with the repo_* tools to ground every explanatio
 - codingChallenge: ONE small hands-on exercise built from this section's change — a 5-20 line self-contained starter snippet (adapted from the real code, simplified if needed) with ONE clearly marked gap (e.g. "// TODO: your code here") that makes the reader re-implement the key idea of the change, plus the reference solution, 1-3 progressive hints, and a difficulty. Make it solvable from the snippet alone. Omit only if there is genuinely no code to exercise.
 - reviewFindings: 0-3 GENUINE potential issues a careful reviewer would flag in THIS code — real bugs, footguns, edge cases mishandled, or risky patterns (e.g. non-constant-time comparisons, unhandled empty/null input, naive parsing, missing validation). For each: the file + exact line range, a severity, a short title, a VAGUE hint (points at the area to look, without giving away the answer), a deep explanation of why it's a problem, and an optional fix suggestion. Only flag real problems — if the code is clean, return an empty array. Do NOT duplicate the same point as both an insight and a finding.
 
-LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia.
+LESSON QUESTIONS — the reader learns this section as a Brilliant-style lesson: they see one block's code, answer its "check", and only then read your story. So for each chunk's check: ask something answerable from that block's code alone (what it does, what it returns or produces for a concrete input, why a particular line is there, what would break without it); give 3-4 short options whose wrong ones are plausible to someone skimming; and explain the right answer in a sentence or two. Never ask for line numbers, file names or other trivia. Keep the question and every option jargon-free and under ~12 words — a reader who met this code one screen ago has to be able to parse them.
+
+SIMPLIFIED FIRST — each block's "mini" is the idea with the noise removed: a caption in plain words plus 3-8 lines of simplified code with invented short names, no imports, no error handling, nothing repo-specific. The reader meets the mini, then the real block, so the real one reads as a variation of something they already understand. Write one for every block with real logic; omit it for trivial blocks (a renamed constant, a config value).
 
 Use line numbers from the NEW version of each file. Reuse the section id "${plan.id}".`
 
@@ -365,7 +406,7 @@ export async function scoreAnswer(
       captured = v
     }
   )
-  const agent = await makeAgent(model, [...tools, submit])
+  const agent = await makeAgent(model, [...tools, submit], MISSION + languageBrief(settings))
   const prompt = `You are a warm, encouraging coach. A learner is studying this code change.
 
 Question they were asked: "${question}"
@@ -407,7 +448,7 @@ export async function assessFinding(
       captured = v
     }
   )
-  const agent = await makeAgent(model, [...tools, submit])
+  const agent = await makeAgent(model, [...tools, submit], MISSION + languageBrief(settings))
   const prompt = `You are a senior reviewer judging whether a learner's review flag is a real issue.
 
 They flagged ${anchor.file} lines ${anchor.startLine}-${anchor.endLine} and wrote:
@@ -449,7 +490,7 @@ export async function generateReview(
       captured = v
     }
   )
-  const agent = await makeAgent(model, [...tools, submit])
+  const agent = await makeAgent(model, [...tools, submit], MISSION + languageBrief(settings))
   const decisionText =
     decision === 'approve' ? 'APPROVE' : decision === 'request_changes' ? 'REQUEST CHANGES' : 'COMMENT (no explicit decision)'
   const prompt = `Help the user write a PR review for this change. Their decision: ${decisionText}.
@@ -481,7 +522,7 @@ async function answer(
   const model = await makeModel(settings)
   const repoRoot = await ensureWorktree(diff.repoPath, diff.feature, diff.featureSha)
   const { tools, trail } = buildInvestigation({ diff, scope, repoRoot, maxFiles: settings.maxFilesPerSection, emit })
-  const agent = await makeAgent(model, tools, missionFor(diff))
+  const agent = await makeAgent(model, tools, missionFor(diff, settings))
 
   emit({ kind: 'status', scope, message: 'Looking into it…' })
   const res: any = await agent.invoke(

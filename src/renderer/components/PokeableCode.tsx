@@ -263,6 +263,6 @@ const EXT_LANG: Record<string, string> = {
   json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml', md: 'markdown', sql: 'sql',
   html: 'html', css: 'css', scss: 'scss', sh: 'bash', bash: 'bash', vue: 'vue'
 }
-function langOf(path: string): string {
+export function langOf(path: string): string {
   return EXT_LANG[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'text'
 }

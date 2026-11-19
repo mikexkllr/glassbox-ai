@@ -2,18 +2,26 @@ import type {
   DiffSummary,
   InlineExplanation,
   Overview,
+  PlainTerm,
   SectionPlan,
   TraceStep,
   WalkChunk,
   WalkthroughSection
 } from '@shared/types'
+import type { Strings } from './i18n'
 import { ARCH_DONE_KEY, FACET_META, buildArchRounds, type OrderItem } from '../components/ArchRecon'
 import { buildChallenge, deriveSymbols } from '../components/Insights'
 
 /**
- * Lessons — the Duolingo/Brilliant loop. A section becomes a short queue of
- * screens where nearly every screen asks the reader to *do* something with the
- * code (predict it, find a line in it, order it, match it) before it explains.
+ * Lessons — the Duolingo/Brilliant loop. A section becomes a SHORT queue of
+ * screens that teaches before it tests:
+ *
+ *   the idea in plain words (+ the words you need)
+ *     → per block: a simplified 4-liner → predict the real code → its story
+ *       → a couple of exercises → at most two questions → say it yourself
+ *
+ * Nothing asks the reader about code they haven't been introduced to, and a
+ * lesson stays at roughly a dozen screens so it fits in one sitting.
  *
  * Everything here is pure: built from the agent's section payload, so cached
  * sessions get lessons too. The player owns state, grading UI and rewards.
@@ -39,6 +47,29 @@ interface Base {
 }
 
 export type Exercise =
+  /** The plain-language idea of a section, before any of its code. */
+  | (Base & {
+      kind: 'idea'
+      eyebrow: string
+      title: string
+      idea: string
+      analogy?: string
+      terms: PlainTerm[]
+      bullets?: string[]
+      aside?: { label: string; text: string }
+    })
+  /** The idea with the noise removed: a few invented lines, then the real thing. */
+  | (Base & {
+      kind: 'mini'
+      eyebrow: string
+      title: string
+      /** The file the real block lives in — only used to pick a highlighter language. */
+      file: string
+      caption: string
+      code: string
+      note: string
+      next: string
+    })
   | (Base & {
       kind: 'learn'
       eyebrow: string
@@ -91,7 +122,14 @@ export type ExerciseKind = Exercise['kind']
 
 /** Graded items move the progress bar only when answered right, and count toward accuracy. */
 export function isGraded(ex: Exercise): boolean {
-  return ex.kind !== 'learn' && ex.kind !== 'learn-chunk' && ex.kind !== 'explain'
+  return !TEACHING.has(ex.kind) && ex.kind !== 'explain'
+}
+
+/** Screens that only explain — no answer, just Continue. */
+export const TEACHING: ReadonlySet<ExerciseKind> = new Set<ExerciseKind>(['idea', 'mini', 'learn', 'learn-chunk'])
+
+export function isTeaching(ex: Exercise): boolean {
+  return TEACHING.has(ex.kind)
 }
 
 /** A tap-the-line answer within this many lines counts — agent line numbers can drift by one. */
@@ -233,10 +271,10 @@ function windowAround(line: number, file: string, chunks: WalkChunk[], salt: num
 }
 
 /** "Read the code — what is this block doing?" Prefers the agent's own question. */
-function predictFor(chunk: WalkChunk, sectionId: string, pool: string[]): Exercise | null {
+function predictFor(chunk: WalkChunk, sectionId: string, pool: string[], s: Strings): Exercise | null {
   const base = {
     id: `${sectionId}/predict/${chunk.id}`,
-    eyebrow: 'Predict',
+    eyebrow: s.eyebrowPredict,
     code: chunkWindow(chunk)
   }
   const c = chunk.check
@@ -260,14 +298,14 @@ function predictFor(chunk: WalkChunk, sectionId: string, pool: string[]): Exerci
   return shuffledChoice({
     ...base,
     kind: 'choice' as const,
-    prompt: 'Read the code first. What is this block doing?',
+    prompt: s.predictFallback,
     options: [chunk.gist, ...distractors],
     correct: 0,
     explanation: chunk.story.what
   })
 }
 
-function tapLines(section: WalkthroughSection, sectionId: string): Exercise[] {
+function tapLines(section: WalkthroughSection, sectionId: string, s: Strings): Exercise[] {
   const steps: { name: string; step: TraceStep; key: string }[] = []
   for (const v of section.traceableValues ?? []) {
     v.steps.forEach((step, i) => {
@@ -288,19 +326,39 @@ function tapLines(section: WalkthroughSection, sectionId: string): Exercise[] {
     if (!picked.includes(s)) picked.push(s)
   }
 
-  return uniqueBy(picked, (s) => s.step.label).map((s, i) => ({
+  return uniqueBy(picked, (t) => t.step.label).map((t, i) => ({
     kind: 'tapline' as const,
-    id: `${sectionId}/tap/${s.key}`,
-    eyebrow: 'Find it',
-    prompt: 'Tap the line where this happens',
-    target: s.step.label,
-    code: windowAround(s.step.line, s.step.file, section.chunks, i + s.step.line),
-    answer: s.step.line,
+    id: `${sectionId}/tap/${t.key}`,
+    eyebrow: s.eyebrowFindIt,
+    prompt: s.tapLinePrompt,
+    target: t.step.label,
+    code: windowAround(t.step.line, t.step.file, section.chunks, i + t.step.line),
+    answer: t.step.line,
     explanations: section.inlineExplanations ?? []
   }))
 }
 
-function matchPairs(section: WalkthroughSection, sectionId: string): Exercise | null {
+/**
+ * Matching the section's own vocabulary (what does "worktree" mean?) is kinder
+ * than matching its identifiers, and it drills exactly the words the rest of
+ * the lesson leans on — so it wins whenever the primer gave us enough of them.
+ */
+function matchTerms(section: WalkthroughSection, sectionId: string, s: Strings): Exercise | null {
+  const terms = uniqueBy(
+    uniqueBy((section.primer?.terms ?? []).filter((t) => t.term.trim() && t.plain.trim().length >= 8), (t) => t.term),
+    (t) => t.plain
+  )
+  if (terms.length < 3) return null
+  return {
+    kind: 'match',
+    id: `${sectionId}/terms`,
+    eyebrow: s.eyebrowMatch,
+    prompt: s.matchTermsPrompt,
+    pairs: terms.slice(0, 4).map((t) => ({ left: t.term, right: clip(maskSymbol(t.plain, t.term).replace(/`/g, ''), 110) }))
+  }
+}
+
+function matchPairs(section: WalkthroughSection, sectionId: string, s: Strings): Exercise | null {
   const inChunk = (e: InlineExplanation) =>
     section.chunks.some((c) => c.file === e.file && e.line >= c.startLine && e.line <= c.endLine)
   const candidates = uniqueBy(
@@ -314,13 +372,13 @@ function matchPairs(section: WalkthroughSection, sectionId: string): Exercise | 
   return {
     kind: 'match',
     id: `${sectionId}/match`,
-    eyebrow: 'Match',
-    prompt: 'Match each name to what it is',
+    eyebrow: s.eyebrowMatch,
+    prompt: s.matchNamesPrompt,
     pairs: candidates.slice(0, 4).map((e) => ({ left: e.symbol, right: clip(maskSymbol(e.gist, e.symbol).replace(/`/g, ''), 110) }))
   }
 }
 
-function orderSteps(section: WalkthroughSection, sectionId: string): Exercise | null {
+function orderSteps(section: WalkthroughSection, sectionId: string, s: Strings): Exercise | null {
   const v = (section.traceableValues ?? []).find((t) => {
     if (t.steps.length < 3 || t.steps.length > 6) return false
     return uniqueBy(t.steps, (s) => s.label).length === t.steps.length
@@ -329,14 +387,14 @@ function orderSteps(section: WalkthroughSection, sectionId: string): Exercise | 
   return {
     kind: 'order',
     id: `${sectionId}/order/${v.id}`,
-    eyebrow: 'Order',
-    prompt: `Put the steps in the order ${v.name} flows through them`,
+    eyebrow: s.eyebrowOrder,
+    prompt: s.orderPrompt(v.name),
     items: v.steps.map((s, i) => ({ id: `s${i}`, primary: s.label })),
     marks: [`trace:${sectionId}:${v.id}`]
   }
 }
 
-function predictValue(section: WalkthroughSection, sectionId: string): Exercise | null {
+function predictValue(section: WalkthroughSection, sectionId: string, s: Strings): Exercise | null {
   const traces = section.traceableValues ?? []
   const allValues = uniqueBy(
     traces.flatMap((t) => t.steps.map((s) => s.exampleValue ?? '')).filter(Boolean),
@@ -362,9 +420,9 @@ function predictValue(section: WalkthroughSection, sectionId: string): Exercise 
   return shuffledChoice({
     kind: 'choice' as const,
     id: `${sectionId}/value/${trace.id}`,
-    eyebrow: 'Predict the value',
-    prompt: `What does ${trace.name} hold at the highlighted line?`,
-    context: prev ? `Earlier — ${prev.s.label}: ${prev.s.exampleValue}` : trace.description,
+    eyebrow: s.eyebrowValue,
+    prompt: s.valuePrompt(trace.name),
+    context: prev ? s.valueEarlier(prev.s.label, prev.s.exampleValue!) : trace.description,
     options: [answer, ...distractors],
     correct: 0,
     explanation: target.s.label,
@@ -375,7 +433,7 @@ function predictValue(section: WalkthroughSection, sectionId: string): Exercise 
 }
 
 /** Insights become fill-the-blank when a real code symbol can be blanked; otherwise a short read. */
-function insightItems(section: WalkthroughSection, sectionId: string): { blanks: Exercise[]; reads: Exercise[] } {
+function insightItems(section: WalkthroughSection, sectionId: string, s: Strings): { blanks: Exercise[]; reads: Exercise[] } {
   const insights = section.insights ?? []
   const symbols = deriveSymbols(section.inlineExplanations)
   const known = new Set(symbols.map((s) => s.toLowerCase()))
@@ -390,51 +448,66 @@ function insightItems(section: WalkthroughSection, sectionId: string): { blanks:
       blanks.push({
         kind: 'blank',
         id: `${sectionId}/blank/${i}`,
-        eyebrow: 'Fill the gap',
-        prompt: 'Complete the insight',
+        eyebrow: s.eyebrowFill,
+        prompt: s.completeInsight,
         before: parts[0],
         after: parts[1],
         answer: ch.answer,
         options: ch.options,
         marks: [...marks, `insightlock:${sectionId}:${i}`]
       })
-    } else if (reads.length < 2) {
-      reads.push({ kind: 'learn', id: `${sectionId}/insight/${i}`, eyebrow: '💡 Insight', title: 'Worth knowing', body: text, marks })
+    } else if (reads.length < 1) {
+      reads.push({ kind: 'learn', id: `${sectionId}/insight/${i}`, eyebrow: s.eyebrowInsight, title: s.goodToKnow, body: text, marks })
     }
   })
-  return { blanks: blanks.slice(0, 2), reads }
+  return { blanks: blanks.slice(0, 1), reads }
 }
 
-/** At most this many blocks get the predict → explain treatment per lesson. */
-const MAX_CHUNKS = 5
+/**
+ * Caps that keep a lesson sittable. Three blocks, two questions and two
+ * exercises is about twelve screens — half of what this used to be, which is
+ * what made it feel like homework instead of a lesson.
+ */
+const MAX_CHUNKS = 3
+const MAX_QUIZ = 2
+const MAX_PRACTICE = 2
 
 /**
  * One section as a lesson:
- *   intro → (predict a block → read its story) × blocks → insights →
- *   mixed practice (find the line, match, fill, order, predict a value) →
- *   quiz → explain it in your own words.
+ *   the idea in plain words → per block (simplified 4-liner → predict the real
+ *   code → its story) → one insight → two exercises → two questions →
+ *   say it in your own words.
  */
 export function buildSectionLesson(
   plan: SectionPlan,
   section: WalkthroughSection,
   others: WalkthroughSection[],
-  index: number
+  index: number,
+  s: Strings
 ): Exercise[] {
   const sid = plan.id
   const items: Exercise[] = []
   const chunks = section.chunks.slice(0, MAX_CHUNKS)
-  const quiz = (section.quiz ?? []).filter((q) => q.correctIndex >= 0 && q.correctIndex < q.options.length)
+  const quiz = (section.quiz ?? [])
+    .filter((q) => q.correctIndex >= 0 && q.correctIndex < q.options.length)
+    .slice(0, MAX_QUIZ)
+  const primer = section.primer
 
+  // Screen one teaches the idea — in everyday words, with the vocabulary the
+  // rest of the lesson needs. Older cached sections have no primer, so fall
+  // back to the plain summary rather than showing an empty screen.
   items.push({
-    kind: 'learn',
-    id: `${sid}/intro`,
-    eyebrow: `Lesson ${index + 1}`,
+    kind: 'idea',
+    id: `${sid}/idea`,
+    eyebrow: s.lessonN(index + 1),
     title: section.title || plan.title,
-    body: section.plainSummaryGist || plan.teaser,
+    idea: primer?.idea?.trim() || section.plainSummaryGist || plan.teaser,
+    analogy: primer?.analogy?.trim() || undefined,
+    terms: primer?.terms ?? [],
     bullets: [
-      chunks.length ? `${chunks.length} code block${chunks.length === 1 ? '' : 's'} to read` : '',
-      'You predict first — the explanation comes after',
-      quiz.length ? `${quiz.length} question${quiz.length === 1 ? '' : 's'} to check yourself` : ''
+      chunks.length ? s.blocksToRead(chunks.length) : '',
+      s.predictFirstBullet,
+      quiz.length ? s.questionsToCheck(quiz.length) : ''
     ].filter(Boolean)
   })
 
@@ -444,7 +517,22 @@ export function buildSectionLesson(
     ...others.filter((o) => o.id !== section.id).flatMap((o) => o.chunks.map((c) => c.gist))
   ]
   for (const chunk of chunks) {
-    const predict = predictFor(chunk, sid, pool)
+    // Meet the idea on invented, noise-free code first; the real block then
+    // reads as a variation of something already understood.
+    if (chunk.mini?.code?.trim()) {
+      items.push({
+        kind: 'mini',
+        id: `${sid}/mini/${chunk.id}`,
+        eyebrow: s.eyebrowSimplified,
+        title: chunk.title,
+        file: chunk.file,
+        caption: chunk.mini.caption,
+        code: chunk.mini.code.replace(/\s+$/, ''),
+        note: s.simplifiedNote,
+        next: s.thenTheRealCode
+      })
+    }
+    const predict = predictFor(chunk, sid, pool, s)
     if (predict) items.push(predict)
     items.push({
       kind: 'learn-chunk',
@@ -455,19 +543,21 @@ export function buildSectionLesson(
     })
   }
 
-  const { blanks, reads } = insightItems(section, sid)
+  const { blanks, reads } = insightItems(section, sid, s)
   items.push(...reads)
 
-  const taps = tapLines(section, sid)
+  const taps = tapLines(section, sid, s)
+  // Vocabulary first, then the gentler drills — and only a couple of them.
   const practice = [
+    matchTerms(section, sid, s),
     taps[0],
-    matchPairs(section, sid),
     blanks[0],
-    orderSteps(section, sid),
-    predictValue(section, sid),
-    taps[1],
-    blanks[1]
-  ].filter((x): x is Exercise => !!x)
+    orderSteps(section, sid, s),
+    predictValue(section, sid, s),
+    matchPairs(section, sid, s)
+  ]
+    .filter((x): x is Exercise => !!x)
+    .slice(0, MAX_PRACTICE)
   items.push(...practice)
 
   for (const q of quiz) {
@@ -475,7 +565,7 @@ export function buildSectionLesson(
       shuffledChoice({
         kind: 'choice' as const,
         id: `${sid}/quiz/${q.id}`,
-        eyebrow: 'Check yourself',
+        eyebrow: s.eyebrowCheck,
         prompt: q.question,
         options: q.options,
         correct: q.correctIndex,
@@ -489,7 +579,7 @@ export function buildSectionLesson(
     items.push({
       kind: 'explain',
       id: `${sid}/explain`,
-      eyebrow: 'In your own words',
+      eyebrow: s.eyebrowOwnWords,
       prompt: section.selfCheck.prompt,
       answer: section.selfCheck.answer,
       sectionId: sid,
@@ -510,16 +600,16 @@ function withUniqueIds(items: Exercise[]): Exercise[] {
 }
 
 /** Guess the architecture before reading any of it, then see the real big picture. */
-export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null): Exercise[] {
-  const rounds = buildArchRounds(overview, diff)
+export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null, s: Strings): Exercise[] {
+  const rounds = buildArchRounds(overview, diff, s)
   if (rounds.length === 0) return []
   const items: Exercise[] = [
     {
       kind: 'learn',
       id: `${WARMUP_ID}/intro`,
-      eyebrow: '🛰 Warm-up',
-      title: 'First, guess.',
-      body: "You haven't read a line yet — perfect. Call the shape of this change now. Being wrong here is the point: it's exactly what the lessons will fix."
+      eyebrow: s.eyebrowWarmup,
+      title: s.warmupTitle,
+      body: s.warmupBody
     }
   ]
   for (const r of rounds) {
@@ -527,11 +617,11 @@ export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null):
       items.push({
         kind: 'choice',
         id: `${WARMUP_ID}/scale`,
-        eyebrow: '📐 Size',
-        prompt: 'How much code does this change touch?',
+        eyebrow: s.eyebrowSize,
+        prompt: s.scalePrompt,
         options: r.options,
         correct: r.correctIndex,
-        explanation: `It touches ${r.detail}.`,
+        explanation: s.scaleExplanation(r.detail ?? ''),
         ordered: true,
         guess: true,
         marks: [r.key]
@@ -544,7 +634,7 @@ export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null):
         shuffledChoice({
           kind: 'choice' as const,
           id: `${WARMUP_ID}/q/${r.q.id}`,
-          eyebrow: `${facet.emoji} ${facet.label}`,
+          eyebrow: `${facet.emoji} ${s.facets[r.q.facet] ?? s.facets.shape}`,
           prompt: r.q.question,
           options: r.q.options,
           correct: r.q.correctIndex,
@@ -555,14 +645,18 @@ export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null):
       )
     }
   }
+  // The reveal: the whole change in everyday words, plus the vocabulary the
+  // lessons are about to use.
   items.push({
-    kind: 'learn',
+    kind: 'idea',
     id: `${WARMUP_ID}/bigpicture`,
-    eyebrow: '✦ The big picture',
+    eyebrow: s.eyebrowBigPicture,
     title: overview.title,
-    body: overview.whatDeep || overview.whatGist,
+    idea: overview.primer?.idea?.trim() || overview.whatDeep || overview.whatGist,
+    analogy: overview.primer?.analogy?.trim() || undefined,
+    terms: overview.primer?.terms ?? [],
     bullets: overview.highlights,
-    aside: overview.why ? { label: 'Why', text: overview.why } : undefined,
+    aside: overview.why ? { label: s.whyLabel, text: overview.why } : undefined,
     marks: [ARCH_DONE_KEY]
   })
   return items
@@ -572,13 +666,14 @@ export function buildWarmupLesson(overview: Overview, diff: DiffSummary | null):
 function allGraded(
   overview: Overview,
   sections: Record<string, WalkthroughSection>,
-  diff: DiffSummary | null
+  diff: DiffSummary | null,
+  s: Strings
 ): Exercise[] {
   const loaded = overview.sections.map((p) => sections[p.id]).filter(Boolean)
-  const out = buildWarmupLesson(overview, diff).filter(isGraded)
+  const out = buildWarmupLesson(overview, diff, s).filter(isGraded)
   overview.sections.forEach((plan, i) => {
     const section = sections[plan.id]
-    if (section) out.push(...buildSectionLesson(plan, section, loaded, i).filter(isGraded))
+    if (section) out.push(...buildSectionLesson(plan, section, loaded, i, s).filter(isGraded))
   })
   return out
 }
@@ -588,10 +683,11 @@ export function buildPracticeLesson(
   missed: string[],
   overview: Overview,
   sections: Record<string, WalkthroughSection>,
-  diff: DiffSummary | null
+  diff: DiffSummary | null,
+  s: Strings
 ): Exercise[] {
   const want = new Set(missed)
-  const picked = shuffle(allGraded(overview, sections, diff).filter((ex) => want.has(ex.id) && !ex.guess)).slice(0, 12)
+  const picked = shuffle(allGraded(overview, sections, diff, s).filter((ex) => want.has(ex.id) && !ex.guess)).slice(0, 10)
   return picked.map((ex) => ({ ...ex, marks: [...(ex.marks ?? []), fixedKey(ex.id)] }))
 }
 
@@ -600,9 +696,10 @@ export function practiceCount(
   missed: string[],
   overview: Overview,
   sections: Record<string, WalkthroughSection>,
-  diff: DiffSummary | null
+  diff: DiffSummary | null,
+  s: Strings
 ): number {
   if (missed.length === 0) return 0
   const want = new Set(missed)
-  return allGraded(overview, sections, diff).filter((ex) => want.has(ex.id) && !ex.guess).length
+  return allGraded(overview, sections, diff, s).filter((ex) => want.has(ex.id) && !ex.guess).length
 }

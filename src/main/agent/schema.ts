@@ -6,6 +6,40 @@ import { z } from 'zod'
  * submit_* tools, so all structure comes from the tool-calling API.
  */
 
+const plainTerm = z.object({
+  term: z.string().describe('The word or abbreviation as the code/your explanation uses it, e.g. "IPC", "reducer", "worktree".'),
+  plain: z
+    .string()
+    .describe('What it means in ONE everyday sentence, with no other jargon in it. Written for someone who has never worked in this codebase.')
+})
+
+const primer = z.object({
+  idea: z
+    .string()
+    .describe(
+      'The idea in 1-2 jargon-free sentences, BEFORE any code is shown. Say what this part is for in everyday words a second-year student would understand. No file names, no identifiers, no abbreviations.'
+    ),
+  analogy: z
+    .string()
+    .optional()
+    .describe('An everyday comparison for that idea (a doorman, a post office, a receipt). One sentence, concrete, never strained. Omit rather than force one.'),
+  terms: z
+    .array(plainTerm)
+    .default([])
+    .describe(
+      'The 2-4 words a reader must know to follow this part — the jargon, abbreviations and domain words you are about to use. Leave out words everyone knows. Empty array only if nothing here needs explaining.'
+    )
+})
+
+const miniExample = z.object({
+  caption: z.string().describe('ONE line: what this simplified snippet shows. Plain words.'),
+  code: z
+    .string()
+    .describe(
+      '3-8 lines of SIMPLIFIED code showing the shape of this block idea — real syntax, invented short names, no error handling, no imports, no repo specifics. The reader sees this before the real block, labelled as simplified. Make it readable on its own.'
+    )
+})
+
 const chunkStory = z.object({
   what: z.string().describe('Plain-language: what this chunk of code does.'),
   fits: z.string().describe('How this chunk fits into the overall change / why it exists.'),
@@ -51,7 +85,12 @@ const walkChunk = z
     story: chunkStory,
     check: chunkCheck
       .optional()
-      .describe('The lesson question asked about this block before its story is shown. Strongly recommended for every chunk with real code.')
+      .describe('The lesson question asked about this block before its story is shown. Strongly recommended for every chunk with real code.'),
+    mini: miniExample
+      .optional()
+      .describe(
+        'A simplified 3-8 line illustration of this block idea, taught BEFORE the real code so the reader meets the idea without the noise. Strongly recommended for any block with real logic; omit for trivial blocks (a renamed constant, a config line).'
+      )
   })
   // A reversed or single-point range (e.g. both lines the same off-by-one guess)
   // silently slices to nothing in the renderer, showing a blank code block with
@@ -148,6 +187,9 @@ export const sectionSchema = z.object({
   plainSummaryDeep: z
     .string()
     .describe('A fuller plain-language explanation (a short paragraph) for the deep-dive dial setting.'),
+  primer: primer.describe(
+    'The groundwork the reader gets BEFORE seeing any code in this section: the idea in everyday words, an optional everyday comparison, and the 2-4 terms they need. This is the first screen of the lesson, so write it for someone who has never seen this codebase.'
+  ),
   files: z.array(z.string()).describe('Repo-relative files this section covers.'),
   chunks: z.array(walkChunk).describe('The notable code chunks in this section, each with its story.'),
   // The following are best-effort enrichments. Prose-only changes (docs, config)
@@ -258,6 +300,9 @@ export const overviewSchema = z.object({
   whatDeep: z.string().describe('A short paragraph: what this PR does, in plain language.'),
   why: z.string().describe('Why this change exists / the problem it solves.'),
   highlights: z.array(z.string()).default([]).describe('3-6 high-level bullet highlights. Empty array is fine.'),
+  primer: primer.describe(
+    'The groundwork for the WHOLE change, in everyday words: what it is about (no file names or identifiers), an optional everyday comparison, and the 2-4 terms the reader needs before any lesson. This is the very first thing they read.'
+  ),
   archChallenge: archChallenge
     .optional()
     .describe('The guess-first architecture warm-up the reader plays before any section. Omit only if you truly could not form a big-picture model.'),

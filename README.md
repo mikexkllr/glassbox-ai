@@ -33,21 +33,27 @@ it is **NOT** a reviewer. **NOT** a linter. **NOT** a vibe-killing quality score
 
 the change becomes a **path**: a warm-up, one lesson per section, and your verdict at the end. lessons unlock in order (or jump ahead), and the next one is prepared in the background so **Start** is instant.
 
-every lesson is a short queue of screens, and almost every screen makes you *do* something with the real code:
+every lesson **teaches before it tests**. it opens with the idea in everyday words — plus the handful of jargon words you need — and only then goes near the real code. each block shows up simplified first, so the real one reads as a variation of something you already get:
 
 | screen | what you do |
 |--------|-------------|
-| 🎯 **predict** | read a block of code and say what it does — *before* the explanation |
-| 📖 **learn** | then get its story: what it does, how it fits, who calls it, the gotcha |
+| ✦ **the idea** | what this part is *for*, in plain words, with an analogy and a mini-glossary — no code |
+| ◻ **simplified first** | a 4-line, made-up version of the block: the shape of the idea, none of the noise |
+| 🎯 **predict** | now the real block — say what it does *before* the explanation |
+| 📖 **learn** | then its story: what it does, with how-it-fits / who-calls-it / the gotcha one click away |
 | 👆 **find it** | tap the line where a step happens |
 | 🔗 **match** | pair each name with what it is |
 | 🔀 **order** | put a value's journey through the code back in order |
 | 🔢 **predict the value** | what does this variable hold *here*? |
 | ✍️ **fill the gap** · **explain it** | complete an insight; explain it in your own words (AI-graded) |
 
+a lesson stays sittable on purpose: at most 3 code blocks, 2 questions and 2 exercises — about a dozen screens.
+
 hit **Check** → a green or red sheet tells you why → **Continue**. miss one and it comes back before the lesson ends; it also lands in **Practice** for later. finish and you get the results screen — XP, accuracy, time — plus your streak and daily goal. keyboard all the way: `1-4` to pick, `Enter` to check/continue, `Esc` to quit.
 
 prefer a reference view? **Read** shows everything on one page, **Slides** one section at a time.
+
+**your language** — Settings → *Lesson language*: follow your system, English or Deutsch. it switches the lesson UI *and* tells the agent which language to write every explanation, question and option in. already-generated lessons keep the language they were written in until you regenerate.
 
 ## why it goes hard 🚀
 

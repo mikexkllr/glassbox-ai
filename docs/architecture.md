@@ -331,15 +331,30 @@ optional "explain it in your own words" grader.
 LearnPath ── warm-up (arch recon) ── lesson per section ── verdict
    │
    └─ LessonPlayer(queue)            Check → green / red sheet → Continue
-        learn      intro, the block's story, short insights        (no grading)
+        idea       the section in plain words + analogy + glossary (no grading)
+        mini       a simplified 3-8 line version of the next block (no grading)
+        learn      the block's story, short insights                (no grading)
         choice     predict a block (chunk.check), quiz, guess a value
         tapline    find the line where a trace step happens
-        match      names ↔ what they are
+        match      the primer's words ↔ their meaning (else names ↔ what they are)
         order      put a trace (or the arch flow) in order
         blank      fill a code symbol into an insight
         explain    free text, AI-scored, ungraded
 ```
 
+- **Teach before you test.** A lesson opens with `section.primer` — the idea in jargon-free
+  words, an everyday analogy and 2-4 terms — and each block is introduced by `chunk.mini`, a
+  simplified snippet, before its real code. Both are agent-written schema fields, and both are
+  optional in the renderer, so sessions cached before they existed fall back to the plain
+  summary and skip the mini screen.
+- **A lesson is sittable.** `MAX_CHUNKS = 3`, `MAX_QUIZ = 2`, `MAX_PRACTICE = 2`, one insight
+  read and one gap-fill — roughly a dozen screens. The per-block cost went up (mini → predict
+  → story), so the block count came down.
+- **One language, chosen once.** `Settings.language` (`auto | en | de`) picks the `Strings`
+  table in `lib/i18n.ts` — a typed interface, so a language that forgets a string fails to
+  compile — and is spelled out to the agent by `languageBrief()`, appended to every mission.
+  The lesson path is translated; the rest of the chrome is not. A cached lesson keeps the
+  language it was generated in until it is regenerated.
 - **Predict before you read.** Every block is asked about first (`chunk.check`, a new optional
   schema field; older sessions fall back to "which gist fits this code"), then explained.
 - **Mistakes come back.** A wrong answer re-queues the item at the end of the lesson and records

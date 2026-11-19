@@ -527,6 +527,11 @@ export interface Settings {
   // Azure OpenAI
   azureEndpoint?: string
   azureApiVersion?: string
+  /**
+   * Language the lessons and the learning UI are written in. 'auto' follows the
+   * OS locale. The agent is told to write every explanation in this language.
+   */
+  language?: LessonLanguage
   // Investigation budget per section.
   maxFilesPerSection: number
   // Generate the next section in the background while reading the current one.
@@ -553,8 +558,27 @@ export const DEFAULT_SETTINGS: Settings = {
   vertexLocation: 'us-central1',
   azureApiVersion: '2024-10-21',
   maxFilesPerSection: 20,
-  prefetchNext: false
+  prefetchNext: false,
+  language: 'auto'
 }
+
+/** The languages lessons can be written in. 'auto' = follow the OS locale. */
+export type LessonLanguage = 'auto' | 'en' | 'de'
+
+export const LESSON_LANGUAGES: { id: LessonLanguage; label: string; hint: string }[] = [
+  { id: 'auto', label: 'Follow my system', hint: 'Use the language your OS is set to' },
+  { id: 'en', label: 'English', hint: 'Lessons and explanations in English' },
+  { id: 'de', label: 'Deutsch', hint: 'Lektionen und Erklaerungen auf Deutsch' }
+]
+
+/** Turn the setting (plus an OS/browser locale) into a concrete language. */
+export function resolveLanguage(language: LessonLanguage | undefined, locale: string): 'en' | 'de' {
+  if (language === 'de' || language === 'en') return language
+  return /^de\b/i.test(locale) ? 'de' : 'en'
+}
+
+/** What the agent writes its explanations in, spelled out for the prompt. */
+export const LANGUAGE_NAME: Record<'en' | 'de', string> = { en: 'English', de: 'German (Deutsch)' }
 
 /** The provider's endpoint: the user's override, else the registry default. */
 export function providerBaseUrl(settings: Settings, provider: Provider = settings.provider): string {
@@ -582,6 +606,39 @@ export interface CodeAnchor {
   file: string
   startLine: number
   endLine: number
+}
+
+/** One word from a section's small glossary, explained without jargon. */
+export interface PlainTerm {
+  /** The term as the code or the explanation uses it, e.g. "IPC". */
+  term: string
+  /** What it means, in one everyday sentence. */
+  plain: string
+}
+
+/**
+ * The plain-language groundwork a reader gets BEFORE any code: the idea in one
+ * or two jargon-free sentences, an everyday comparison, and the handful of
+ * words they need to follow along. This is what makes a lesson approachable to
+ * someone who has never seen this codebase.
+ */
+export interface Primer {
+  idea: string
+  /** An everyday comparison for the idea. Optional. */
+  analogy?: string
+  terms: PlainTerm[]
+}
+
+/**
+ * A stripped-down illustration of one code block: a few lines that show the
+ * shape of the idea without the real code's noise. Shown before the real block,
+ * and always labelled as simplified so nobody mistakes it for the repo's code.
+ */
+export interface MiniExample {
+  /** One line: what this simplified snippet shows. */
+  caption: string
+  /** 3-8 lines of simplified code. */
+  code: string
 }
 
 export interface ChunkStory {
@@ -616,6 +673,8 @@ export interface WalkChunk extends CodeAnchor {
   story: ChunkStory
   /** The lesson's question for this block. Absent on older cached sessions — lessons fall back to a gist question. */
   check?: ChunkCheck
+  /** A simplified version of this block's idea, taught before the real code. Absent on older cached sessions. */
+  mini?: MiniExample
 }
 
 export type SymbolKind = 'variable' | 'function' | 'type' | 'constant' | 'parameter' | 'import' | 'other'
@@ -780,6 +839,8 @@ export interface WalkthroughSection {
   title: string
   plainSummaryGist: string
   plainSummaryDeep: string
+  /** The plain-language idea taught before any code. Absent on older cached sessions. */
+  primer?: Primer
   files: string[]
   chunks: WalkChunk[]
   inlineExplanations: InlineExplanation[]
@@ -812,6 +873,8 @@ export interface Overview {
   why: string
   /** High-level bullet highlights. */
   highlights: string[]
+  /** The plain-language idea of the whole change, taught before anything else. */
+  primer?: Primer
   /** The architecture warm-up shown before the sections. Absent on older cached sessions. */
   archChallenge?: ArchChallenge
   sections: SectionPlan[]

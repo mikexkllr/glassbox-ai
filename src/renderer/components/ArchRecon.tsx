@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { useGame } from '../game/store'
 import { play } from '../game/sfx'
 import { cn } from '../lib/files'
+import { useStrings, type Strings } from '../lib/i18n'
 
 /**
  * Architecture Recon — the guess-first warm-up that runs before any section.
@@ -42,11 +43,6 @@ const FILE_LADDER: Array<[number, number]> = [
   [51, Infinity]
 ]
 
-function bucketLabel([lo, hi]: [number, number]): string {
-  if (hi === Infinity) return `${lo}+ files`
-  return lo === hi ? `${lo} file` : `${lo}–${hi} files`
-}
-
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -57,7 +53,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /** The rounds available for this journey, in play order. Empty = nothing to play. */
-export function buildArchRounds(overview: Overview | null, diff: DiffSummary | null): ArchRound[] {
+export function buildArchRounds(overview: Overview | null, diff: DiffSummary | null, t: Strings): ArchRound[] {
   if (!overview) return []
   const rounds: ArchRound[] = []
   // A topic journey snapshots the repo at one commit — there's no diff to size up.
@@ -69,9 +65,9 @@ export function buildArchRounds(overview: Overview | null, diff: DiffSummary | n
     rounds.push({
       kind: 'scale',
       key: 'arch:scale',
-      options: FILE_LADDER.slice(start, start + 4).map(bucketLabel),
+      options: FILE_LADDER.slice(start, start + 4).map(([lo, hi]) => t.archFileBucket(lo, hi)),
       correctIndex: truth - start,
-      detail: `${files.length} ${files.length === 1 ? 'file' : 'files'} · +${diff!.totalAdditions} −${diff!.totalDeletions}`
+      detail: t.archScaleDetail(files.length, diff!.totalAdditions, diff!.totalDeletions)
     })
   }
 
@@ -90,8 +86,8 @@ export function buildArchRounds(overview: Overview | null, diff: DiffSummary | n
     rounds.push({
       kind: 'order',
       key: 'arch:hotspots',
-      title: '🔥 Where does the weight land?',
-      prompt: 'Rank these files by how much of the change lives in them — heaviest first.',
+      title: t.archHotspotsTitle,
+      prompt: t.archHotspotsPrompt,
       items: hotspots.map((f) => ({
         id: f.path,
         primary: f.path.split('/').pop() ?? f.path,
@@ -107,10 +103,10 @@ export function buildArchRounds(overview: Overview | null, diff: DiffSummary | n
     rounds.push({
       kind: 'order',
       key: 'arch:order',
-      title: '🔀 What happens in what order?',
+      title: t.archOrderTitle,
       // Leading, not wrapping: a long flowLabel would otherwise push the verb
       // ("…back in order") a whole line away from what it applies to.
-      prompt: arch?.flowLabel ? `Back in order: ${arch.flowLabel}.` : 'Put the main flow back in order.',
+      prompt: arch?.flowLabel ? t.archOrderBack(arch.flowLabel) : t.archOrderPlain,
       items: stages.map((s, i) => ({ id: `stage-${i}`, primary: s })),
       reward: 25
     })
@@ -135,9 +131,10 @@ export const FACET_META: Record<ArchFacet, { label: string; emoji: string }> = {
 }
 
 export default function ArchRecon() {
+  const t = useStrings()
   const overview = useStore((s) => s.overview)
   const diff = useStore((s) => s.diff)
-  const rounds = useMemo(() => buildArchRounds(overview, diff), [overview, diff])
+  const rounds = useMemo(() => buildArchRounds(overview, diff, t), [overview, diff, t])
 
   const rewarded = useGame((s) => s.rewarded)
   const mark = useGame((s) => s.mark)

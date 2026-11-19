@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
+  LESSON_LANGUAGES,
   PROVIDERS,
   PROVIDER_GROUPS,
   providerBaseUrl,
+  resolveLanguage,
+  type LessonLanguage,
   type Provider,
   type ProviderWire,
   type Settings,
@@ -288,6 +291,27 @@ export default function SettingsModal() {
             </Field>
           </div>
         )}
+
+        <Field
+          label="Lesson language"
+          hint={
+            draft.language === 'auto' || !draft.language
+              ? `Following your system — lessons come out in ${resolveLanguage('auto', navigator.language) === 'de' ? 'Deutsch' : 'English'}. Applies to new lessons; already-generated ones keep their language until you regenerate.`
+              : 'Applies to new lessons; already-generated ones keep their language until you regenerate.'
+          }
+        >
+          <select
+            value={draft.language ?? 'auto'}
+            onChange={(e) => set({ language: e.target.value as LessonLanguage })}
+            className="input no-drag"
+          >
+            {LESSON_LANGUAGES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label} — {l.hint}
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <Field label={`Investigation budget: ${draft.maxFilesPerSection} files / section`} hint="How deep Glassbox digs per section.">
           <input
