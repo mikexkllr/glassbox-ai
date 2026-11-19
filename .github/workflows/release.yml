@@ -52,7 +52,11 @@ jobs:
     # whether the secrets exist: `secrets` is not available in a step `if`.
     env:
       MAC_SIGNED: ${{ secrets.MAC_CSC_LINK != '' }}
-      MAC_NOTARIZED: ${{ secrets.APPLE_ID != '' }}
+      # All three, not just one: electron-builder throws outright when APPLE_ID
+      # is present and the app-specific password is not, so a half-configured
+      # account would fail the whole macOS build instead of simply shipping
+      # unnotarized. Hand the trio over together or not at all.
+      MAC_NOTARIZED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -100,9 +104,9 @@ jobs:
           CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.MAC_SIGNED }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ env.MAC_NOTARIZED == 'true' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ env.MAC_NOTARIZED == 'true' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ env.MAC_NOTARIZED == 'true' && secrets.APPLE_TEAM_ID || '' }}
           # Windows Authenticode. electron-builder reads these on Windows only,
           # and ignores them while they are empty. See docs/signing.md.
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
@@ -129,6 +133,12 @@ jobs:
             echo "::endgroup::"
           done < <(find dist -maxdepth 2 -name '*.app')
           [ "$found" = 1 ] || { echo "no .app found under dist/"; exit 1; }
+
+      - name: Note that the macOS build is not notarized
+        if: matrix.os == 'macos-latest' && env.MAC_SIGNED == 'true' && env.MAC_NOTARIZED != 'true'
+        shell: bash
+        run: |
+          echo "::warning title=macOS build signed but not notarized::Set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID (see docs/signing.md). Gatekeeper will still warn on a Mac that has never seen this app."
 
       - name: Note that the macOS build is unsigned
         if: matrix.os == 'macos-latest' && env.MAC_SIGNED != 'true'
