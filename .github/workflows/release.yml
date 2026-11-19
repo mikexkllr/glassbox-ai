@@ -21,7 +21,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate the whole release on the types. `electron-vite build` only strips
+  # types, so without this a type error ships to everyone as a new version.
+  check:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
   build:
+    needs: check
     strategy:
       fail-fast: false
       matrix:
@@ -79,12 +94,19 @@ jobs:
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # CSC_LINK is NOT mac-only to electron-builder — on Windows it would
+          # be used as the Authenticode certificate. Hand it over on macOS only,
+          # or the day the mac secret exists the Windows build starts failing.
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ env.MAC_SIGNED }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows Authenticode. electron-builder reads these on Windows only,
+          # and ignores them while they are empty. See docs/signing.md.
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
       # Catch a half-signed mac build here rather than letting users meet it as
       # "Glassbox is damaged" — and because an unsigned app cannot auto-update.

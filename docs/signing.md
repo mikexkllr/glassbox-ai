@@ -193,6 +193,40 @@ missing, so a Mac that has never seen the app still asks.
 xcrun stapler validate /Applications/Glassbox.app
 ```
 
+## Windows
+
+Windows has the same problem with a different name: an unsigned installer makes
+SmartScreen say *"Windows protected your PC — unknown publisher"*, and the user
+has to click *More info → Run anyway*. Unlike macOS, auto-update works without a
+signature, so this is about trust at install time, not about updating.
+
+The pipeline is already wired for it. Two secrets and nothing else changes:
+
+| secret | what it holds |
+|---|---|
+| `WIN_CSC_LINK` | an Authenticode certificate as a base64 `.pfx` |
+| `WIN_CSC_KEY_PASSWORD` | its password |
+
+electron-builder reads those two on Windows only, and ignores them while they
+are empty — which is why the mac certificate is handed over as `CSC_LINK`
+*only* on the macOS runner. `CSC_LINK` is not mac-specific to electron-builder:
+on a Windows runner it would be taken as the Authenticode certificate and the
+build would fail trying to sign with an Apple key.
+
+Getting a certificate is the hard part, and it is not like Apple's:
+
+- **[Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/)**
+  — Microsoft's hosted signing service, billed monthly, with no hardware token
+  to plug in. Individuals have to pass an identity check that wants several
+  years of verifiable history. The friendliest option for CI if you qualify;
+  electron-builder supports it through `win.azureSignOptions`.
+- **An OV certificate from a CA** (DigiCert, Sectigo, …) — since the CA/Browser
+  Forum tightened the rules, the private key has to live on a hardware token or
+  a cloud HSM, which makes signing from a GitHub runner awkward and is why the
+  `.pfx` route is getting rarer.
+- **Nothing.** SmartScreen's warning softens as a given installer builds up
+  reputation, and plenty of open-source desktop apps ship unsigned on Windows.
+
 ## When it goes wrong
 
 **`skipped macOS application code signing  reason=Identity name is specified, but no valid identity with this name in the keychain`**

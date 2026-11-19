@@ -1,0 +1,29 @@
+name: CI
+
+# Every pull request gets the same two checks the release run does, so a
+# contributor finds out here rather than from a broken release.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # `electron-vite build` strips the types instead of checking them, so the
+      # build alone would happily ship a type error. Both, in that order.
+      - run: npm run typecheck
+      - run: npm run build
