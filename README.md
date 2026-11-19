@@ -97,6 +97,10 @@ macOS is the picky one: it only lets an app replace itself if that app is code-s
 
 > unsigned builds make the OS nervous: **macOS** → right-click the app → *Open*; **Windows** → *More info* → *Run anyway*. a signed + notarized mac build just opens.
 
+### your data 🔐
+
+your code goes to the model provider *you* pick, and nowhere else — choose [Ollama](https://ollama.com) and it never leaves the machine. api keys are stored owner-only (`0600`), and encrypted with your OS keychain on top as soon as the build is code-signed — an unsigned build can't hold a keychain key across restarts, so glassbox checks before it trusts one ([details](SECURITY.md)). cached walkthroughs are owner-only too, since they quote your source. git access is read-only, through a throwaway worktree. **crash reporting is off unless you switch it on**, and even then it sends stack traces and a version number, no IP, no username. details in [SECURITY.md](SECURITY.md).
+
 ## run it 🏃
 
 ```bash

@@ -1,0 +1,24 @@
+name: Idea
+description: Something Glassbox should do, or do differently
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is awkward today
+      description: Describe the moment it bites, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+  - type: checkboxes
+    id: area
+    attributes:
+      label: Where it fits
+      options:
+        - label: The lesson path (how a change is taught)
+        - label: The agent (what gets generated)
+        - label: Setup, settings or packaging
+        - label: Somewhere else

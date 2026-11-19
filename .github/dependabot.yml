@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Electron, LangChain and friends move fast; one grouped pull request a week
+  # is reviewable, twenty separate ones are not.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      langchain:
+        patterns: ['@langchain/*', 'langchain', 'deepagents']
+      dev-dependencies:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,48 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      placeholder: |
+        1. Opened a repo with …
+        2. Picked base/feature …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Glassbox version
+      description: Shown on the Releases page, or the version of the file you installed.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Model provider and model
+      placeholder: e.g. Ollama / qwen2.5-coder
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything in the logs
+      description: >
+        Run the app from a terminal to see them. Please remove API keys and
+        anything from your own source code before pasting.
+      render: shell
